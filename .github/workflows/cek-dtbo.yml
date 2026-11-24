@@ -1,0 +1,61 @@
+name: Cek overlay dtbo vendor vs DTB mainline
+
+# Mensimulasikan langkah bootloader Qualcomm (ABL): menempelkan overlay dari
+# dtbo.img Infinity-X ke DTB vayu mainline. Kalau ini gagal, HP akan kembali
+# ke fastboot saat mencoba boot kernel mainline.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["patches/**", "tools/cek_dtbo.py", ".github/workflows/cek-dtbo.yml"]
+
+env:
+  ARCH: arm64
+  LLVM: "1"
+  KERNEL_REPO: https://gitlab.com/sm8150-mainline/linux.git
+  KERNEL_TAG: v6.13.0-sm8150
+  ROM_URL: https://downloads.sourceforge.net/project/infinity-x/vayu/16/gapps/Project_Infinity-X-3.12-vayu-20.09.2026-GAPPS-OFFICIAL.zip
+
+jobs:
+  cek:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Alat
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang lld llvm flex bison bc libssl-dev device-tree-compiler unzip
+          fdtoverlay --version || true
+
+      - name: dtbo.img dari ROM Infinity-X
+        run: |
+          curl -fL --retry 3 -o rom.zip "$ROM_URL"
+          unzip -o rom.zip dtbo.img
+          rm rom.zip
+          ls -la dtbo.img
+
+      - name: DTB vayu mainline (dengan __symbols__)
+        run: |
+          git clone -q --depth 1 --branch "$KERNEL_TAG" "$KERNEL_REPO" linux
+          cd linux
+          git -c user.name=ci -c user.email=ci@localhost am -q --whitespace=nowarn ../patches/6.13/*.patch
+          make -s O=out defconfig
+          make -s O=out DTC_FLAGS=-@ qcom/sm8150-xiaomi-vayu.dtb qcom/sm8150-xiaomi-vayu-tianma.dtb
+
+      - name: Simulasi ABL - DTB framebuffer
+        run: python3 tools/cek_dtbo.py dtbo.img linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb hasil-vayu
+
+      - name: Simulasi ABL - DTB tianma
+        if: always()
+        run: python3 tools/cek_dtbo.py dtbo.img linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-tianma.dtb hasil-tianma
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cek-dtbo
+          path: |
+            hasil-vayu/
+            hasil-tianma/

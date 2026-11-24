@@ -64,9 +64,11 @@ jobs:
       - name: Build
         run: |
           cd linux
-          make O=out -j"$(nproc)" Image.gz qcom/sm8150-xiaomi-vayu.dtb qcom/sm8150-xiaomi-vayu-tianma.dtb 2>&1 | tee ../build.log | grep -E "error|warning: .*(nt36672c|xiaomi|j20s)" || true
+          make O=out -j"$(nproc)" DTC_FLAGS=-@ Image.gz qcom/sm8150-xiaomi-vayu.dtb qcom/sm8150-xiaomi-vayu-tianma.dtb 2>&1 | tee ../build.log | grep -E "error|warning: .*(nt36672c|xiaomi|j20s)" || true
           test -f out/arch/arm64/boot/Image.gz
           out/scripts/dtc/dtc -I dtb -O dts out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb 2>/dev/null | grep -A2 "ramoops@a1600000"
+          # __symbols__ wajib ada agar bootloader bisa menempelkan overlay dtbo
+          out/scripts/dtc/dtc -I dtb -O dts out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb 2>/dev/null | grep -q "__symbols__"
 
       - name: Initramfs + boot image
         run: |
