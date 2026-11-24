@@ -4,7 +4,8 @@
 Bootloader Qualcomm (ABL) memilih entri dtbo yang cocok (msm-id/board-id),
 lalu menempelkannya ke DTB kernel. Kalau gagal -> boot dibatalkan -> fastboot.
 
-Pakai: cek_dtbo.py dtbo.img base.dtb outdir
+Pakai: cek_dtbo.py dtbo.img base.dtb outdir [--ketat]
+  --ketat: gagal juga bila overlay mengubah node di luar stub.
 Butuh: fdtoverlay, fdtget, dtc (paket device-tree-compiler).
 """
 import os
@@ -75,6 +76,7 @@ def report_changes(base, merged):
 
 def main():
     img, base, out = sys.argv[1:4]
+    strict = "--ketat" in sys.argv[4:]
     os.makedirs(out, exist_ok=True)
     data = open(img, "rb").read()
     (magic, total, hsize, esize, count, eoff, psize, ver) = struct.unpack(">8I", data[:32])
@@ -90,6 +92,7 @@ def main():
 
     any_match = False
     all_ok = True
+    outside = 0
     for i in range(count):
         off = eoff + i * esize
         (dsize, doff, eid, rev, c0, c1, c2, c3) = struct.unpack(">8I", data[off:off + 32])
@@ -114,8 +117,8 @@ def main():
         res = run("fdtoverlay", "-i", base, "-o", merged, path)
         ok = res.returncode == 0
         print(f"   fdtoverlay: {'BERHASIL' if ok else 'GAGAL'} {res.stderr.strip()}")
-        if ok:
-            report_changes(base, merged)
+        if ok and match:
+            outside += len(report_changes(base, merged))
         if match and not ok:
             all_ok = False
         open(os.path.join(out, f"missing{i}.txt"), "w").write("\n".join(missing) + "\n")
@@ -123,8 +126,12 @@ def main():
     print()
     if not any_match:
         print("HASIL: tidak ada entri dtbo dengan board-id yang sama -> ABL kemungkinan tidak menempelkan overlay.")
+    elif all_ok and strict and outside:
+        print(f"HASIL: overlay ditempel, TAPI mengubah {outside} properti di luar stub (mode ketat).")
+        sys.exit(3)
     elif all_ok:
-        print("HASIL: overlay vendor BERHASIL ditempel ke DTB mainline.")
+        print("HASIL: overlay vendor BERHASIL ditempel ke DTB mainline"
+              + (" tanpa mengubah node mainline asli." if not outside else f" ({outside} perubahan di luar stub)."))
     else:
         print("HASIL: overlay vendor GAGAL ditempel -> ABL akan membatalkan boot (kembali ke fastboot).")
         sys.exit(2)

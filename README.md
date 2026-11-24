@@ -14,7 +14,7 @@ Kernel Linux **6.13** (sm8150-mainline) + patch khusus vayu, bukan kernel vendor
 | `0004` | Ramoops di alamat yang sama dengan kernel vendor → log crash bisa dibaca dari ROM Android (`/sys/fs/pstore`) |
 | `0005` | Perbaikan driver touchscreen agar bisa dikompilasi di 6.13 |
 | `0006` | `qcom,msm-id <339 0x20000>` + `qcom,board-id <47 0>` (dari kernel vendor) agar bootloader Qualcomm mau memilih DTB ini |
-| `0007` | Node stub untuk 118 label yang dirujuk overlay `dtbo` Infinity-X, agar bootloader berhasil menempelkan overlay (kalau gagal → kembali ke fastboot) |
+| `0007` | Node stub untuk 126 label yang dirujuk overlay `dtbo` Infinity-X, agar bootloader berhasil menempelkan overlay (kalau gagal → kembali ke fastboot). `tools/alihkan_symbols.py` mengarahkan 8 label yang juga ada di mainline (`soc`, `tlmm`, `mdss_*`, `pcie0`, `sdhc_2`, `spmi_bus`) ke stub, sehingga overlay tidak menyentuh node mainline asli |
 
 - Source dasar: [sm8150-mainline/linux](https://gitlab.com/sm8150-mainline/linux) tag `v6.13.0-sm8150`
 - `vayu.config`: opsi tambahan (panel, pstore) di atas `defconfig` + `sm8150.config`
@@ -30,7 +30,9 @@ Hasil (artifact): `Image.gz`, DTB, boot image **header v2** (format sama dengan 
 - Patch diterapkan bersih ke `v6.13.0-sm8150`.
 - Driver touchscreen, panel, notifier DRM, dan kedua DTB lolos kompilasi.
 - Peta reserved-memory DTS vayu sama dengan kernel vendor (tejas101k/kernel_xiaomi_vayu).
-- msm-id/board-id sama dengan kernel vendor; format boot image sama dengan Infinity-X.
+- msm-id/board-id sama dengan kernel vendor; format boot image (header v2, Image tidak terkompresi) sama dengan Infinity-X.
+- Simulasi bootloader: overlay `dtbo.img` asli dari ROM Infinity-X 3.12 berhasil ditempel ke DTB, **tanpa mengubah node mainline** (dicek di setiap build, mode ketat).
+- Kernel + initramfs yang sama boot sampai init siap di QEMU arm64.
 
 ## Risiko yang diketahui
 

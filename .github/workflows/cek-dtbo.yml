@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["patches/**", "tools/cek_dtbo.py", ".github/workflows/cek-dtbo.yml"]
+    paths: ["patches/**", "tools/**", ".github/workflows/cek-dtbo.yml"]
 
 env:
   ARCH: arm64
@@ -52,13 +52,16 @@ jobs:
           git -c user.name=ci -c user.email=ci@localhost am -q --whitespace=nowarn ../patches/6.13/*.patch
           make -s O=out defconfig
           make -s O=out DTC_FLAGS=-@ qcom/sm8150-xiaomi-vayu.dtb qcom/sm8150-xiaomi-vayu-tianma.dtb
+          cd ..
+          python3 tools/alihkan_symbols.py linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb \
+            linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-tianma.dtb
 
       - name: Simulasi ABL - DTB framebuffer
-        run: python3 tools/cek_dtbo.py dtbo.img linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb hasil-vayu
+        run: python3 tools/cek_dtbo.py dtbo.img linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb hasil-vayu --ketat
 
       - name: Simulasi ABL - DTB tianma
         if: always()
-        run: python3 tools/cek_dtbo.py dtbo.img linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-tianma.dtb hasil-tianma
+        run: python3 tools/cek_dtbo.py dtbo.img linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-tianma.dtb hasil-tianma --ketat
 
       - uses: actions/upload-artifact@v4
         if: always()
