@@ -1,17 +1,31 @@
-TAHAP 1 - Uji kernel 7.0 di Poco X3 Pro (tanpa flash, tanpa format)
+TAHAP 1 - Uji kernel mainline di Poco X3 Pro (tanpa flash, tanpa format)
 
+!!! WAJIB DIBACA !!!
+- Image ini HANYA untuk perintah "fastboot boot" dari PC.
+- JANGAN pakai "fastboot flash", dan JANGAN pakai menu "Install / Flash Image"
+  di TWRP/OrangeFox. Itu MENIMPA partisi boot secara permanen. Kalau kernel
+  gagal, HP tidak bisa masuk ROM, dan restore boot yang tidak sama persis bisa
+  membuat data harus diformat.
+- Tidak punya PC dengan fastboot? Jangan uji image ini.
+
+Sebelum mulai (sekali saja):
+- Backup file penting ke PC.
+- Di recovery: Backup -> centang "Boot" -> simpan, lalu salin ke PC.
+  Kalau suatu saat perlu restore, pakai backup ini (bukan boot.img dari zip lain).
+
+Langkah:
 1. Masuk fastboot: matikan HP, tahan Vol Bawah + Power.
 2. Di PC:  fastboot boot boot-test-tianma.img     (atau huaxing, sesuai panel)
-   PENTING: pakai "fastboot boot", JANGAN "fastboot flash".
 3. Tunggu 1-2 menit. Kemungkinan hasil:
    a) Layar menampilkan tulisan log Linux        -> kernel + layar hidup
    b) Layar hitam, tapi PC mendeteksi perangkat USB baru
-      ("Poco X3 Pro kernel 7.0..." / kartu jaringan / COM port) -> kernel hidup
-   c) Langsung reboot / kembali ke fastboot      -> gagal sangat awal
+      ("Poco X3 Pro kernel ..." / kartu jaringan / COM port) -> kernel hidup
+   c) Langsung kembali ke fastboot               -> gagal sangat awal
    d) Diam di logo POCO, tidak ada USB baru      -> gagal (kirim info ke Claude)
 4. Kalau (b): set IP kartu jaringan USB di PC ke 172.16.42.2, lalu
       telnet 172.16.42.1
    lalu jalankan:  cat /tmp/ringkasan.txt ; dmesg | tail -100
    Salin hasilnya ke Claude.
-5. Kembali ke Infinity-X: tahan Power ~10 detik sampai HP restart.
-   Tidak ada yang berubah di HP.
+5. Kembali ke ROM: tahan Power ~10 detik sampai HP restart.
+   Karena tidak ada yang di-flash, HP langsung masuk ROM seperti biasa.
+   TIDAK perlu restore apa pun.
