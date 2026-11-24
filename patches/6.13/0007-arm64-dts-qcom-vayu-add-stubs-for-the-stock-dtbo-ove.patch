@@ -1,0 +1,184 @@
+From 73277c43ef4b3d82643e3631c7df4dc6b5841e90 Mon Sep 17 00:00:00 2001
+From: lyanteo <lyanteo@users.noreply.github.com>
+Date: Tue, 24 Nov 2026 18:19:31 +0000
+Subject: [PATCH] arm64: dts: qcom: vayu: add stubs for the stock dtbo overlay
+
+The Qualcomm bootloader applies the vendor overlay from the dtbo partition
+(board-id 47, model "VAYU") on top of the kernel DTB and aborts the boot
+when a referenced label is missing. The stock Infinity-X 3.12 dtbo
+references 118 labels that only exist in the vendor 4.14 tree.
+
+Provide empty nodes for those labels in a disabled container without a
+compatible, so the overlay applies cleanly and its content is never used.
+The DTB must be built with symbols (DTC_FLAGS=-@).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0192C5wPw4AwnF1EyMXZJ5bh
+---
+ .../qcom/sm8150-xiaomi-vayu-dtbo-compat.dtsi  | 141 ++++++++++++++++++
+ .../boot/dts/qcom/sm8150-xiaomi-vayu.dts      |   1 +
+ 2 files changed, 142 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-dtbo-compat.dtsi
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-dtbo-compat.dtsi b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-dtbo-compat.dtsi
+new file mode 100644
+index 000000000000..d9c49456e2e6
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-dtbo-compat.dtsi
+@@ -0,0 +1,141 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Compatibility stubs for the vendor dtbo overlay of Xiaomi POCO X3 Pro.
++ *
++ * The Qualcomm bootloader (ABL) applies the overlay from the dtbo partition
++ * (board-id 47, model "VAYU") on top of the kernel DTB and aborts the boot
++ * (back to fastboot) if any label referenced by the overlay is missing.
++ * The stock overlay references 118 labels that only exist in the vendor
++ * 4.14 device tree. Provide empty nodes for them inside a disabled
++ * container without "compatible", so the overlay applies but nothing in it
++ * is ever probed or used by the mainline kernel.
++ *
++ * Requires the DTB to be built with symbols (DTC_FLAGS=-@).
++ */
++
++/ {
++	xiaomi-dtbo-compat {
++		status = "disabled";
++		#address-cells = <1>;
++		#size-cells = <1>;
++
++		CPU0: cpu0-stub { };
++		CPU1: cpu1-stub { };
++		CPU2: cpu2-stub { };
++		CPU3: cpu3-stub { };
++		CPU4: cpu4-stub { };
++		CPU5: cpu5-stub { };
++		CPU6: cpu6-stub { };
++		CPU7: cpu7-stub { };
++		aqt_intr_default: aqt-intr-default-stub { };
++		cam_cci0: cam-cci0-stub { };
++		cam_cci1: cam-cci1-stub { };
++		cam_sensor_active_front: cam-sensor-active-front-stub { };
++		cam_sensor_active_iris: cam-sensor-active-iris-stub { };
++		cam_sensor_active_rear: cam-sensor-active-rear-stub { };
++		cam_sensor_active_rear_aux: cam-sensor-active-rear-aux-stub { };
++		cam_sensor_mclk0_active: cam-sensor-mclk0-active-stub { };
++		cam_sensor_mclk0_suspend: cam-sensor-mclk0-suspend-stub { };
++		cam_sensor_mclk1_active: cam-sensor-mclk1-active-stub { };
++		cam_sensor_mclk1_suspend: cam-sensor-mclk1-suspend-stub { };
++		cam_sensor_mclk2_active: cam-sensor-mclk2-active-stub { };
++		cam_sensor_mclk2_suspend: cam-sensor-mclk2-suspend-stub { };
++		cam_sensor_mclk3_active: cam-sensor-mclk3-active-stub { };
++		cam_sensor_mclk3_suspend: cam-sensor-mclk3-suspend-stub { };
++		cam_sensor_suspend_front: cam-sensor-suspend-front-stub { };
++		cam_sensor_suspend_iris: cam-sensor-suspend-iris-stub { };
++		cam_sensor_suspend_rear: cam-sensor-suspend-rear-stub { };
++		cam_sensor_suspend_rear_aux: cam-sensor-suspend-rear-aux-stub { };
++		cdc_reset_active: cdc-reset-active-stub { };
++		cdc_reset_sleep: cdc-reset-sleep-stub { };
++		clock_camcc: clock-camcc-stub { };
++		clock_rpmh: clock-rpmh-stub { };
++		cs35l41_int_default: cs35l41-int-default-stub { };
++		eud: eud-stub { };
++		glink_spi_xprt_wdsp: glink-spi-xprt-wdsp-stub { };
++		mdss_dsi0_pll: mdss-dsi0-pll-stub { };
++		mdss_dsi1_pll: mdss-dsi1-pll-stub { };
++		mdss_dsi_phy0: mdss-dsi-phy0-stub { };
++		mdss_dsi_phy1: mdss-dsi-phy1-stub { };
++		mhi_0: mhi-0-stub { };
++		msm_gpu: msm-gpu-stub { };
++		pm8150_l10: pm8150-l10-stub { };
++		pm8150_l13: pm8150-l13-stub { };
++		pm8150_l14: pm8150-l14-stub { };
++		pm8150_l2: pm8150-l2-stub { };
++		pm8150_l5: pm8150-l5-stub { };
++		pm8150_l7: pm8150-l7-stub { };
++		pm8150_l9: pm8150-l9-stub { };
++		pm8150_s4: pm8150-s4-stub { };
++		pm8150_s5: pm8150-s5-stub { };
++		pm8150l_bob: pm8150l-bob-stub { };
++		pm8150l_l1: pm8150l-l1-stub { };
++		pm8150l_l11: pm8150l-l11-stub { };
++		pm8150l_l2: pm8150l-l2-stub { };
++		pm8150l_l3: pm8150l-l3-stub { };
++		pm8150l_l6: pm8150l-l6-stub { };
++		pm8150l_l9: pm8150l-l9-stub { };
++		pm8150l_s8: pm8150l-s8-stub { };
++		quat_mi2s_active: quat-mi2s-active-stub { };
++		quat_mi2s_sd0_active: quat-mi2s-sd0-active-stub { };
++		quat_mi2s_sd0_sleep: quat-mi2s-sd0-sleep-stub { };
++		quat_mi2s_sd1_active: quat-mi2s-sd1-active-stub { };
++		quat_mi2s_sd1_sleep: quat-mi2s-sd1-sleep-stub { };
++		quat_mi2s_sleep: quat-mi2s-sleep-stub { };
++		quat_tdm_active: quat-tdm-active-stub { };
++		quat_tdm_dout_active: quat-tdm-dout-active-stub { };
++		quat_tdm_dout_sleep: quat-tdm-dout-sleep-stub { };
++		quat_tdm_sleep: quat-tdm-sleep-stub { };
++		quin_mi2s_mclk_active: quin-mi2s-mclk-active-stub { };
++		quin_mi2s_mclk_sleep: quin-mi2s-mclk-sleep-stub { };
++		qupv3_se12_2uart: qupv3-se12-2uart-stub { };
++		qupv3_se13_4uart: qupv3-se13-4uart-stub { };
++		qupv3_se17_spi: qupv3-se17-spi-stub { };
++		qupv3_se1_spi: qupv3-se1-spi-stub { };
++		qupv3_se3_spi: qupv3-se3-spi-stub { };
++		qupv3_se4_i2c: qupv3-se4-i2c-stub { };
++		qupv3_se7_i2c: qupv3-se7-i2c-stub { };
++		qupv3_se9_i2c: qupv3-se9-i2c-stub { };
++		reserved_memory: reserved-memory-stub { };
++		sdc2_clk_off: sdc2-clk-off-stub { };
++		sdc2_clk_on: sdc2-clk-on-stub { };
++		sdc2_cmd_off: sdc2-cmd-off-stub { };
++		sdc2_cmd_on: sdc2-cmd-on-stub { };
++		sdc2_data_off: sdc2-data-off-stub { };
++		sdc2_data_on: sdc2-data-on-stub { };
++		sde_dp: sde-dp-stub { };
++		sde_dp_usbplug_cc_active: sde-dp-usbplug-cc-active-stub { };
++		sde_dp_usbplug_cc_suspend: sde-dp-usbplug-cc-suspend-stub { };
++		sde_dsi1_active: sde-dsi1-active-stub { };
++		sde_dsi1_suspend: sde-dsi1-suspend-stub { };
++		sde_dsi_active: sde-dsi-active-stub { };
++		sde_dsi_suspend: sde-dsi-suspend-stub { };
++		sde_rscc: sde-rscc-stub { };
++		sde_te1_active: sde-te1-active-stub { };
++		sde_te1_suspend: sde-te1-suspend-stub { };
++		sde_te_active: sde-te-active-stub { };
++		sde_te_suspend: sde-te-suspend-stub { };
++		slim_aud: slim-aud-stub { };
++		snd_934x: snd-934x-stub { };
++		snd_9360: snd-9360-stub { };
++		spmi_debug_bus: spmi-debug-bus-stub { };
++		storage_cd: storage-cd-stub { };
++		stub_codec: stub-codec-stub { };
++		thermal_zones: thermal-zones-stub { };
++		titan_top_gdsc: titan-top-gdsc-stub { };
++		ufs_phy_gdsc: ufs-phy-gdsc-stub { };
++		ufshc_mem: ufshc-mem-stub { };
++		ufsphy_mem: ufsphy-mem-stub { };
++		usb0: usb0-stub { };
++		usb1: usb1-stub { };
++		usb2_id_det_default: usb2-id-det-default-stub { };
++		usb2_phy0: usb2-phy0-stub { };
++		usb2_phy1: usb2-phy1-stub { };
++		usb_nop_phy: usb-nop-phy-stub { };
++		usb_qmp_dp_phy: usb-qmp-dp-phy-stub { };
++		usb_qmp_phy: usb-qmp-phy-stub { };
++		vendor: vendor-stub { };
++		wcd_intr_default: wcd-intr-default-stub { };
++		wil6210: wil6210-stub { };
++	};
++};
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dts
+index 595037cf5cae..aadffb24cd85 100644
+--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dts
+@@ -17,6 +17,7 @@
+ #include "pm8150.dtsi"
+ #include "pm8150b.dtsi"
+ #include "pm8150l.dtsi"
++#include "sm8150-xiaomi-vayu-dtbo-compat.dtsi"
+ 
+ /* 
+  * Rewrite reserved memory maps inherited from sm8150.dtsi to match the ones
+-- 
+2.43.0
+

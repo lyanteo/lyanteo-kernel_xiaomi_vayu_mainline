@@ -34,6 +34,45 @@ def fixups(dtbo):
     return set(r.stdout.split()) if r.returncode == 0 else set()
 
 
+STUB = "/xiaomi-dtbo-compat"
+IGNORE = ("/__symbols__", "/__fixups__", "/__local_fixups__")
+
+
+def props(dtb):
+    """{(path, prop): value} dari dtb, via dtc -O dts."""
+    r = run("dtc", "-q", "-I", "dtb", "-O", "dts", "-s", dtb)
+    out, stack = {}, []
+    for line in r.stdout.splitlines():
+        t = line.strip()
+        if t.endswith("{"):
+            name = t[:-1].strip().split(":")[-1].strip()
+            stack.append("" if name == "/" else name)
+        elif t.startswith("};"):
+            if stack:
+                stack.pop()
+        elif t and not t.startswith(("/dts-v1/", "//", "/memreserve/")):
+            path = "/" + "/".join(s for s in stack if s)
+            key, _, val = t.rstrip(";").partition("=")
+            out[(path, key.strip())] = val.strip()
+    return out
+
+
+def report_changes(base, merged):
+    a, b = props(base), props(merged)
+    changes = []
+    for k in sorted(set(a) | set(b)):
+        path = k[0]
+        if path.startswith(STUB) or path.startswith(IGNORE) or "phandle" in k[1]:
+            continue
+        if a.get(k) != b.get(k):
+            kind = "BARU" if k not in a else ("HILANG" if k not in b else "BERUBAH")
+            changes.append(f"     {kind:8s} {path} : {k[1]} = {b.get(k, a.get(k))[:120]}")
+    print(f"   perubahan DI LUAR node stub: {len(changes)}")
+    for c in changes[:300]:
+        print(c)
+    return changes
+
+
 def main():
     img, base, out = sys.argv[1:4]
     os.makedirs(out, exist_ok=True)
@@ -69,9 +108,14 @@ def main():
         print(f"   label yang dirujuk: {len(need)}, tidak ada di DTB mainline: {len(missing)}")
         for m in missing:
             print(f"     - {m}")
-        res = run("fdtoverlay", "-i", base, "-o", os.path.join(out, f"hasil{i}.dtb"), path)
+        present = sorted(need & base_syms)
+        print(f"   label yang ADA di DTB mainline (overlay mengubah node asli): {present}")
+        merged = os.path.join(out, f"hasil{i}.dtb")
+        res = run("fdtoverlay", "-i", base, "-o", merged, path)
         ok = res.returncode == 0
         print(f"   fdtoverlay: {'BERHASIL' if ok else 'GAGAL'} {res.stderr.strip()}")
+        if ok:
+            report_changes(base, merged)
         if match and not ok:
             all_ok = False
         open(os.path.join(out, f"missing{i}.txt"), "w").write("\n".join(missing) + "\n")
