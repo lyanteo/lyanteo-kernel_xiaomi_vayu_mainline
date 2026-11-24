@@ -1,0 +1,47 @@
+#!/bin/busybox sh
+# Init uji boot TANPA PC (kernel mainline 6.4, dijalankan dari partisi recovery).
+#
+# - Tidak me-mount / menulis partisi apa pun di HP.
+# - Semua pesan masuk ke log kernel -> tersimpan di ramoops (RAM) ->
+#   setelah restart, Infinity-X bisa membacanya di /sys/fs/pstore/.
+# - Setelah 90 detik HP restart sendiri ke ROM (partisi boot, tidak diubah).
+
+/bin/busybox --install -s /bin
+export PATH=/bin
+
+mkdir -p /proc /sys /dev /tmp
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mount -t tmpfs tmpfs /tmp
+
+say() {
+	echo "VAYU-TES: $*" > /dev/kmsg
+	echo "VAYU-TES: $*" > /dev/tty0 2>/dev/null
+}
+
+say "=== KERNEL MAINLINE BERHASIL MENJALANKAN INIT ==="
+say "kernel: $(uname -r)"
+say "model: $(cat /proc/device-tree/model 2>/dev/null)"
+say "cmdline: $(cat /proc/cmdline)"
+say "memori: $(grep MemTotal /proc/meminfo)"
+say "cpu online: $(cat /sys/devices/system/cpu/online 2>/dev/null)"
+say "drm: $(ls /sys/class/drm 2>/dev/null | tr '\n' ' ')"
+say "graphics: $(ls /sys/class/graphics 2>/dev/null | tr '\n' ' ')"
+say "udc: $(ls /sys/class/udc 2>/dev/null | tr '\n' ' ')"
+say "block: $(ls /sys/class/block 2>/dev/null | head -n 12 | tr '\n' ' ')"
+say "input: $(cat /proc/bus/input/devices 2>/dev/null | grep -i '^N:' | tr '\n' ' ')"
+say "pstore: $(ls /sys/fs/pstore 2>/dev/null)"
+say "thermal: $(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)"
+say "baterai: $(cat /sys/class/power_supply/*/capacity 2>/dev/null | tr '\n' ' ')"
+
+for i in 90 75 60 45 30 15; do
+	say "restart otomatis ke ROM dalam $i detik"
+	sleep 15
+done
+
+say "=== SELESAI, RESTART KE ROM ==="
+sync
+reboot -f
+# kalau reboot gagal, tetap hidup (tahan Power ~10 detik untuk keluar)
+while true; do sleep 3600; done
