@@ -74,14 +74,19 @@ jobs:
           cp initramfs/init rd/init
           chmod 755 rd/init rd/bin/busybox
           (cd rd && find . | cpio -o -H newc -R root:root --quiet | gzip -9) > initramfs.cpio.gz
+          # Format disamakan dengan boot.img Infinity-X 3.12 vayu (dicek dari ROM):
+          # header v2, page 4096, kernel 0x8000, ramdisk 0x1000000, tags 0x100,
+          # DTB terpisah di 0x1f00000, os 16.0.0, patch 2026-09.
           for v in vayu vayu-tianma; do
-            cat linux/out/arch/arm64/boot/Image.gz linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-$v.dtb > Image.gz-dtb
-            python3 /opt/mkbootimg/mkbootimg.py --header_version 0 --pagesize 4096 \
+            python3 /opt/mkbootimg/mkbootimg.py --header_version 2 --pagesize 4096 \
               --base 0x00000000 --kernel_offset 0x00008000 --ramdisk_offset 0x01000000 \
-              --second_offset 0x00f00000 --tags_offset 0x00000100 \
-              --kernel Image.gz-dtb --ramdisk initramfs.cpio.gz \
+              --tags_offset 0x00000100 --dtb_offset 0x01f00000 \
+              --os_version 16.0.0 --os_patch_level 2026-09 \
+              --kernel linux/out/arch/arm64/boot/Image.gz --ramdisk initramfs.cpio.gz \
+              --dtb linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-$v.dtb \
               --cmdline "console=tty0 loglevel=7 ignore_loglevel panic=10 clk_ignore_unused pd_ignore_unused" \
               -o dist/boot-6.13-$v.img
+            python3 /opt/mkbootimg/unpack_bootimg.py --boot_img dist/boot-6.13-$v.img --out /tmp/chk-$v --format=info | head -20
           done
           cp linux/out/arch/arm64/boot/Image.gz linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu*.dtb dist/
           cp linux/out/.config dist/kernel.config
