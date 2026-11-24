@@ -35,7 +35,8 @@ jobs:
           echo "busybox: $DEB"
           curl -fsSL -o busybox.deb "http://ports.ubuntu.com/pool/universe/b/busybox/$DEB"
           dpkg-deb -x busybox.deb bb
-          BB=$(find bb -type f -name busybox | head -n1)
+          # Ubuntu menamai binary-nya usr/bin/busybox-static
+          BB=$(find bb -type f \( -name busybox -o -name busybox-static \) | head -n1)
           echo "BB=$BB" >> "$GITHUB_ENV"
           file "$BB"
           file "$BB" | grep -q "ARM aarch64"
