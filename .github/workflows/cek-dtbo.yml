@@ -33,9 +33,17 @@ jobs:
       - name: dtbo.img dari ROM Infinity-X
         run: |
           curl -fL --retry 3 -o rom.zip "$ROM_URL"
-          unzip -o rom.zip dtbo.img
+          unzip -o rom.zip dtbo.img boot.img
           rm rom.zip
-          ls -la dtbo.img
+          ls -la dtbo.img boot.img
+
+      - name: Format kernel di boot.img Infinity-X (acuan)
+        run: |
+          git clone -q --depth 1 https://android.googlesource.com/platform/system/tools/mkbootimg /opt/mkbootimg
+          python3 /opt/mkbootimg/unpack_bootimg.py --boot_img boot.img --out ref --format=info
+          echo "16 byte pertama kernel:"; head -c 16 ref/kernel | od -An -tx1
+          echo "magic arm64 Image (offset 0x38, harus 41 52 4d 64 = 'ARMd' kalau tidak terkompresi):"
+          dd if=ref/kernel bs=1 skip=56 count=4 2>/dev/null | od -An -tx1
 
       - name: DTB vayu mainline (dengan __symbols__)
         run: |

@@ -1,8 +1,8 @@
 name: Build kernel 6.13 vayu
 
 # sm8150-mainline v6.13 + patch vayu di patches/6.13/
-# Hasil: Image.gz, DTB, dan boot image (header v0, DTB ditempel, sama
-# dengan format postmarketOS untuk vayu).
+# Hasil: DTB dan boot image header v2 (format sama dengan boot.img
+# Infinity-X 3.12 vayu), plus uji jalan di QEMU.
 
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
       - name: Alat
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang lld llvm flex bison bc libssl-dev libelf-dev cpio python3 file
+          sudo apt-get install -y -qq clang lld llvm flex bison bc libssl-dev libelf-dev cpio python3 file qemu-system-arm
           git clone -q --depth 1 https://android.googlesource.com/platform/system/tools/mkbootimg /opt/mkbootimg
           DEB=$(curl -fsSL http://ports.ubuntu.com/pool/universe/b/busybox/ | grep -o 'busybox-static_[^"]*_arm64\.deb' | sort -uV | tail -n1)
           echo "busybox: $DEB"
@@ -64,8 +64,9 @@ jobs:
       - name: Build
         run: |
           cd linux
-          make O=out -j"$(nproc)" DTC_FLAGS=-@ Image.gz qcom/sm8150-xiaomi-vayu.dtb qcom/sm8150-xiaomi-vayu-tianma.dtb 2>&1 | tee ../build.log | grep -E "error|warning: .*(nt36672c|xiaomi|j20s)" || true
-          test -f out/arch/arm64/boot/Image.gz
+          make O=out -j"$(nproc)" DTC_FLAGS=-@ Image qcom/sm8150-xiaomi-vayu.dtb qcom/sm8150-xiaomi-vayu-tianma.dtb 2>&1 | tee ../build.log | grep -E "error|warning: .*(nt36672c|xiaomi|j20s)" || true
+          test -f out/arch/arm64/boot/Image
+          ls -l out/arch/arm64/boot/Image
           out/scripts/dtc/dtc -I dtb -O dts out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb 2>/dev/null | grep -A2 "ramoops@a1600000"
           # __symbols__ wajib ada agar bootloader bisa menempelkan overlay dtbo
           out/scripts/dtc/dtc -I dtb -O dts out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb 2>/dev/null | grep -q "__symbols__"
@@ -78,22 +79,35 @@ jobs:
           chmod 755 rd/init rd/bin/busybox
           (cd rd && find . | cpio -o -H newc -R root:root --quiet | gzip -9) > initramfs.cpio.gz
           # Format disamakan dengan boot.img Infinity-X 3.12 vayu (dicek dari ROM):
-          # header v2, page 4096, kernel 0x8000, ramdisk 0x1000000, tags 0x100,
-          # DTB terpisah di 0x1f00000, os 16.0.0, patch 2026-09.
+          # header v2, page 4096, kernel Image TIDAK terkompresi di 0x8000,
+          # ramdisk 0x1000000, tags 0x100, DTB terpisah di 0x1f00000,
+          # os 16.0.0, patch 2026-09.
           for v in vayu vayu-tianma; do
             python3 /opt/mkbootimg/mkbootimg.py --header_version 2 --pagesize 4096 \
               --base 0x00000000 --kernel_offset 0x00008000 --ramdisk_offset 0x01000000 \
               --tags_offset 0x00000100 --dtb_offset 0x01f00000 \
               --os_version 16.0.0 --os_patch_level 2026-09 \
-              --kernel linux/out/arch/arm64/boot/Image.gz --ramdisk initramfs.cpio.gz \
+              --kernel linux/out/arch/arm64/boot/Image --ramdisk initramfs.cpio.gz \
               --dtb linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-$v.dtb \
               --cmdline "console=tty0 loglevel=7 ignore_loglevel panic=10 clk_ignore_unused pd_ignore_unused" \
               -o dist/boot-6.13-$v.img
             python3 /opt/mkbootimg/unpack_bootimg.py --boot_img dist/boot-6.13-$v.img --out /tmp/chk-$v --format=info | head -20
           done
-          cp linux/out/arch/arm64/boot/Image.gz linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu*.dtb dist/
+          cp linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu*.dtb dist/
           cp linux/out/.config dist/kernel.config
           cd dist && sha256sum * > SHA256SUMS && ls -lh
+
+      - name: Uji jalan di QEMU (kernel + initramfs yang sama)
+        run: |
+          # Hardware vayu tidak bisa diemulasikan, tapi ini membuktikan kernel
+          # tidak crash di kode umum dan init + busybox benar-benar jalan.
+          timeout 180 qemu-system-aarch64 -M virt -cpu max -smp 2 -m 2048 -nographic -no-reboot \
+            -kernel linux/out/arch/arm64/boot/Image -initrd initramfs.cpio.gz \
+            -append "console=ttyAMA0 panic=-1" > qemu.log 2>&1 || true
+          grep -E "Linux version|vayu-initramfs|Kernel panic|Unable to mount|not syncing" qemu.log | head -20
+          grep -q "Kernel panic" qemu.log && { echo "::error::kernel panic di QEMU"; tail -40 qemu.log; exit 1; }
+          grep -q "vayu-initramfs: ready" qemu.log || { echo "::error::init tidak sampai siap"; tail -60 qemu.log; exit 1; }
+          echo "QEMU: kernel boot dan init siap"
 
       - uses: actions/upload-artifact@v4
         with:
