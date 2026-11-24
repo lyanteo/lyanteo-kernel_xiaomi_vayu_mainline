@@ -1,0 +1,60 @@
+#!/bin/sh
+# Tahap 1: init minimal untuk uji kernel mainline di vayu.
+# Hasil: USB jadi kartu jaringan (NCM/RNDIS) + serial ACM.
+#   PC: ip 172.16.42.2  ->  telnet 172.16.42.1
+#   atau serial: /dev/ttyACM0 (Linux) / COMx (Windows)
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mkdir -p /dev/pts /tmp /run /sys/kernel/config
+mount -t devpts devpts /dev/pts
+mount -t tmpfs tmpfs /tmp
+mount -t configfs configfs /sys/kernel/config 2>/dev/null
+mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null
+
+log() { echo "[stage1] $*" > /dev/kmsg; echo "[stage1] $*" > /dev/tty0 2>/dev/null; }
+log "kernel $(uname -r) hidup di $(cat /proc/device-tree/model 2>/dev/null)"
+
+# Coldplug: muat modul untuk semua perangkat yang terdeteksi (3 putaran)
+if [ -d /lib/modules/$(uname -r) ]; then
+  for i in 1 2 3; do
+    find /sys/devices -name modalias -exec cat {} + 2>/dev/null | sort -u | xargs -r modprobe -a -q 2>/dev/null
+    for m in phy_qcom_qmp_combo phy_qcom_qmp_usb phy_qcom_snps_femto_v2 phy_qcom_usb_hs dwc3_qcom dwc3 libcomposite usb_f_ncm usb_f_rndis usb_f_acm; do modprobe -q $m 2>/dev/null; done
+    sleep 2
+  done
+fi
+
+# USB gadget
+G=/sys/kernel/config/usb_gadget/g1
+for t in $(seq 1 20); do [ -n "$(ls /sys/class/udc 2>/dev/null)" ] && break; sleep 1; done
+UDC=$(ls /sys/class/udc 2>/dev/null | head -1)
+log "UDC: ${UDC:-TIDAK ADA}"
+if [ -n "$UDC" ] && [ -d /sys/kernel/config/usb_gadget ]; then
+  mkdir -p $G && cd $G
+  echo 0x18D1 > idVendor; echo 0xD001 > idProduct
+  mkdir -p strings/0x409
+  echo "vayu-mainline" > strings/0x409/serialnumber
+  echo "Xiaomi" > strings/0x409/manufacturer
+  echo "Poco X3 Pro kernel $(uname -r)" > strings/0x409/product
+  mkdir -p configs/c.1/strings/0x409
+  echo "stage1" > configs/c.1/strings/0x409/configuration
+  mkdir -p functions/ncm.usb0 && ln -s functions/ncm.usb0 configs/c.1/
+  mkdir -p functions/acm.usb0 && ln -s functions/acm.usb0 configs/c.1/
+  echo "$UDC" > UDC
+  cd /
+  sleep 2
+  ip link set usb0 up 2>/dev/null
+  ip addr add 172.16.42.1/24 dev usb0 2>/dev/null
+  udhcpd -f /etc/udhcpd.conf >/dev/null 2>&1 &
+  telnetd -l /bin/sh -b 172.16.42.1
+  ( while true; do [ -e /dev/ttyGS0 ] && getty -n -l /bin/sh 115200 ttyGS0; sleep 1; done ) &
+  log "USB siap: telnet 172.16.42.1"
+fi
+
+# Simpan ringkasan untuk dicek lewat telnet
+{ uname -a; echo; cat /proc/cpuinfo | grep -m1 Hardware; echo; ls /sys/class/drm /sys/class/udc /sys/class/net 2>&1; echo; lsmod 2>/dev/null; } > /tmp/ringkasan.txt
+dmesg > /tmp/dmesg-awal.txt
+
+log "Tahap 1 selesai. Tekan power lama untuk kembali ke Infinity-X."
+exec /bin/sh </dev/tty0 >/dev/tty0 2>&1 || while true; do sleep 3600; done
