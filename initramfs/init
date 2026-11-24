@@ -1,0 +1,78 @@
+#!/bin/busybox sh
+# Minimal debug initramfs for POCO X3 Pro (vayu) mainline bring-up.
+#
+# After boot the phone exposes over USB:
+#   - a serial console (CDC ACM)  -> Windows: COMx in Device Manager, open with PuTTY 115200
+#                                  -> Linux:   /dev/ttyACM0 (screen /dev/ttyACM0 115200)
+#   - a network interface (NCM)   -> telnet 172.16.42.1
+# Logs are also copied to /log on the device (dmesg, pstore from a previous crash).
+
+/bin/busybox --install -s /bin
+export PATH=/bin
+
+mkdir -p /proc /sys /dev /tmp /log /config
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mount -t tmpfs tmpfs /tmp
+mount -t configfs configfs /config 2>/dev/null || mount -t configfs configfs /sys/kernel/config
+mkdir -p /sys/fs/pstore
+mount -t pstore pstore /sys/fs/pstore 2>/dev/null
+
+echo "vayu-initramfs: started" > /dev/kmsg
+
+# Save the previous crash log (ramoops) if any
+cp -r /sys/fs/pstore /log/pstore 2>/dev/null
+
+# --- USB gadget: ACM serial + NCM network ---
+G=/config/usb_gadget/g1
+[ -d /config/usb_gadget ] || G=/sys/kernel/config/usb_gadget/g1
+mkdir -p $G
+echo 0x18d1 > $G/idVendor
+echo 0xd001 > $G/idProduct
+mkdir -p $G/strings/0x409
+echo "vayu-mainline" > $G/strings/0x409/serialnumber
+echo "postmarket-style" > $G/strings/0x409/manufacturer
+echo "POCO X3 Pro mainline debug" > $G/strings/0x409/product
+mkdir -p $G/functions/acm.usb0 $G/functions/ncm.usb0
+mkdir -p $G/configs/c.1/strings/0x409
+echo "acm+ncm" > $G/configs/c.1/strings/0x409/configuration
+ln -s $G/functions/acm.usb0 $G/configs/c.1/
+ln -s $G/functions/ncm.usb0 $G/configs/c.1/
+
+# Wait for the USB controller to show up
+i=0
+while [ -z "$(ls /sys/class/udc 2>/dev/null)" ] && [ $i -lt 30 ]; do
+	sleep 1; i=$((i+1))
+done
+UDC=$(ls /sys/class/udc | head -n1)
+echo "vayu-initramfs: udc='$UDC'" > /dev/kmsg
+echo "$UDC" > $G/UDC
+
+sleep 2
+ifconfig usb0 172.16.42.1 netmask 255.255.255.0 up 2>/dev/null
+udhcpd_conf=/tmp/udhcpd.conf
+cat > $udhcpd_conf <<EOF
+start 172.16.42.2
+end 172.16.42.2
+interface usb0
+option subnet 255.255.255.0
+EOF
+touch /tmp/udhcpd.leases
+udhcpd -S $udhcpd_conf 2>/dev/null
+telnetd -b 172.16.42.1:23 -l /bin/sh 2>/dev/null
+
+# Keep a copy of the kernel log
+dmesg > /log/dmesg-boot.txt
+
+echo "vayu-initramfs: ready (serial ttyGS0, telnet 172.16.42.1)" > /dev/kmsg
+echo "vayu-initramfs: ready (serial ttyGS0, telnet 172.16.42.1)" > /dev/tty0 2>/dev/null
+
+# Shell on the USB serial port, respawned forever; never exit PID 1
+while true; do
+	if [ -e /dev/ttyGS0 ]; then
+		setsid sh -c 'exec sh </dev/ttyGS0 >/dev/ttyGS0 2>&1'
+	else
+		sleep 5
+	fi
+done

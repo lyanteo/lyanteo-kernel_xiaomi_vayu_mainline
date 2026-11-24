@@ -1,0 +1,639 @@
+From 28e4104d635aff96c506d2b5b7c7c7eaa17c820c Mon Sep 17 00:00:00 2001
+From: lyanteo <lyanteo@users.noreply.github.com>
+Date: Tue, 24 Nov 2026 17:42:57 +0000
+Subject: [PATCH] drm/panel: add Tianma NT36672C panel for Xiaomi POCO X3 Pro
+ (vayu)
+
+Init sequence, 1080x2400@120 video-mode timings and DSC 1.1 parameters
+(slice 540x20, 8 bpc, 8 bpp) taken from the vendor device tree
+(dsi-panel-j20s-36-02-0a-lcd-dsc-vid.dtsi).
+
+Add sm8150-xiaomi-vayu-tianma.dts which enables MDSS/DSI0, the panel and
+PM8150L WLED backlight. LAB/IBB (PM8150L LCDB) have no mainline driver
+yet and are left as configured by the bootloader.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0192C5wPw4AwnF1EyMXZJ5bh
+---
+ arch/arm64/boot/dts/qcom/Makefile             |   1 +
+ .../dts/qcom/sm8150-xiaomi-vayu-tianma.dts    | 111 +++++
+ drivers/gpu/drm/panel/Kconfig                 |  12 +
+ drivers/gpu/drm/panel/Makefile                |   1 +
+ .../drm/panel/panel-novatek-nt36672c-j20s.c   | 440 ++++++++++++++++++
+ 5 files changed, 565 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-tianma.dts
+ create mode 100644 drivers/gpu/drm/panel/panel-novatek-nt36672c-j20s.c
+
+diff --git a/arch/arm64/boot/dts/qcom/Makefile b/arch/arm64/boot/dts/qcom/Makefile
+index c079bb409dfe..4b95db8c5c5b 100644
+--- a/arch/arm64/boot/dts/qcom/Makefile
++++ b/arch/arm64/boot/dts/qcom/Makefile
+@@ -253,6 +253,7 @@ dtb-$(CONFIG_ARCH_QCOM)	+= sm8150-sony-xperia-kumano-griffin.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8150-xiaomi-cepheus.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8150-xiaomi-nabu.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8150-xiaomi-vayu.dtb
++dtb-$(CONFIG_ARCH_QCOM)	+= sm8150-xiaomi-vayu-tianma.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-hdk.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8150-oneplus-guacamole.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8150-oneplus-hotdogb.dtb
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-tianma.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-tianma.dts
+new file mode 100644
+index 000000000000..b931e9b3268a
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-tianma.dts
+@@ -0,0 +1,111 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Xiaomi POCO X3 Pro (vayu) with the Tianma "36 02 0a" NT36672C panel.
++ *
++ * Experimental: enables MDSS/DSI and the panel driver instead of the
++ * bootloader simple-framebuffer. Use sm8150-xiaomi-vayu.dtb for a safe
++ * framebuffer-only boot.
++ *
++ * Panel data from the vendor tree (sm8150-sde-display.dtsi,
++ * xiaomi-sm8150-common.dtsi, vayu-sm8150.dtsi).
++ */
++
++#include "sm8150-xiaomi-vayu.dts"
++
++/ {
++	model = "Xiaomi POCO X3 Pro (Tianma panel)";
++
++	chosen {
++		/delete-node/ framebuffer@9c000000;
++	};
++
++	aliases {
++		/delete-property/ display0;
++	};
++
++	/* Downstream "disp_vci_vreg" (sde_dsi vcie-supply), GPIO 21 */
++	disp_vci_vreg: regulator-disp-vci {
++		compatible = "regulator-fixed";
++		regulator-name = "disp_vci";
++		gpio = <&tlmm 21 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++		startup-delay-us = <4000>;
++		regulator-boot-on;
++		/* No consumer in mainline yet; keep the panel rail up */
++		regulator-always-on;
++	};
++};
++
++&dispcc {
++	status = "okay";
++};
++
++&mdss {
++	status = "okay";
++};
++
++&mdss_mdp {
++	status = "okay";
++};
++
++&mdss_dsi0 {
++	vdda-supply = <&vreg_l3c_1p2>;
++	status = "okay";
++
++	panel@0 {
++		compatible = "xiaomi,vayu-nt36672c-tianma";
++		reg = <0>;
++
++		vddio-supply = <&vreg_l14a_1p88>;
++		/* lab/ibb: PM8150L LCDB has no mainline driver, left to bootloader */
++
++		reset-gpios = <&tlmm 6 GPIO_ACTIVE_LOW>;
++		backlight = <&pm8150l_wled>;
++
++		pinctrl-0 = <&panel_default>;
++		pinctrl-names = "default";
++
++		port {
++			panel_in: endpoint {
++				remote-endpoint = <&mdss_dsi0_out>;
++			};
++		};
++	};
++};
++
++&mdss_dsi0_out {
++	remote-endpoint = <&panel_in>;
++	data-lanes = <0 1 2 3>;
++};
++
++&mdss_dsi0_phy {
++	vdds-supply = <&vreg_l5a_0p875>;
++	status = "okay";
++};
++
++/* downstream: qcom,string-cfg = <7> (strings 0..2), ovp 28V, 22.5 mA */
++&pm8150l_wled {
++	qcom,num-strings = <3>;
++	qcom,ovp-millivolt = <28000>;
++	qcom,current-limit-microamp = <22500>;
++	qcom,cabc;
++	status = "okay";
++};
++
++&tlmm {
++	panel_default: panel-default-state {
++		reset-pins {
++			pins = "gpio6";
++			function = "gpio";
++			drive-strength = <8>;
++			bias-disable;
++		};
++
++		te-pins {
++			pins = "gpio8";
++			function = "mdp_vsync";
++			drive-strength = <2>;
++			bias-pull-down;
++		};
++	};
++};
+diff --git a/drivers/gpu/drm/panel/Kconfig b/drivers/gpu/drm/panel/Kconfig
+index d7469c565d1d..2fd64de672ba 100644
+--- a/drivers/gpu/drm/panel/Kconfig
++++ b/drivers/gpu/drm/panel/Kconfig
+@@ -487,6 +487,18 @@ config DRM_PANEL_NOVATEK_NT36672A
+ 	  around the Novatek NT36672A display controller, such as some
+ 	  Tianma panels used in a few Xiaomi Poco F1 mobile phones.
+ 
++config DRM_PANEL_NOVATEK_NT36672C_J20S
++	tristate "Novatek NT36672C Tianma panel (Xiaomi POCO X3 Pro)"
++	depends on OF
++	depends on DRM_MIPI_DSI
++	depends on BACKLIGHT_CLASS_DEVICE
++	select DRM_DISPLAY_DSC_HELPER
++	select DRM_DISPLAY_HELPER
++	help
++	  Say Y here if you want to enable support for the Tianma NT36672C
++	  1080x2400 DSC video mode panel ("36 02 0a") used in the Xiaomi
++	  POCO X3 Pro (vayu).
++
+ config DRM_PANEL_NOVATEK_NT36672E
+ 	tristate "Novatek NT36672E DSI panel"
+ 	depends on OF
+diff --git a/drivers/gpu/drm/panel/Makefile b/drivers/gpu/drm/panel/Makefile
+index 7dcf72646cac..4f4b5f03211a 100644
+--- a/drivers/gpu/drm/panel/Makefile
++++ b/drivers/gpu/drm/panel/Makefile
+@@ -48,6 +48,7 @@ obj-$(CONFIG_DRM_PANEL_NOVATEK_NT35560) += panel-novatek-nt35560.o
+ obj-$(CONFIG_DRM_PANEL_NOVATEK_NT35950) += panel-novatek-nt35950.o
+ obj-$(CONFIG_DRM_PANEL_NOVATEK_NT36523) += panel-novatek-nt36523.o
+ obj-$(CONFIG_DRM_PANEL_NOVATEK_NT36672A) += panel-novatek-nt36672a.o
++obj-$(CONFIG_DRM_PANEL_NOVATEK_NT36672C_J20S) += panel-novatek-nt36672c-j20s.o
+ obj-$(CONFIG_DRM_PANEL_NOVATEK_NT36672E) += panel-novatek-nt36672e.o
+ obj-$(CONFIG_DRM_PANEL_NOVATEK_NT39016) += panel-novatek-nt39016.o
+ obj-$(CONFIG_DRM_PANEL_MANTIX_MLAF057WE51) += panel-mantix-mlaf057we51.o
+diff --git a/drivers/gpu/drm/panel/panel-novatek-nt36672c-j20s.c b/drivers/gpu/drm/panel/panel-novatek-nt36672c-j20s.c
+new file mode 100644
+index 000000000000..fa667070976e
+--- /dev/null
++++ b/drivers/gpu/drm/panel/panel-novatek-nt36672c-j20s.c
+@@ -0,0 +1,440 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Novatek NT36672C LCD panel (Tianma "36 02 0a") found in the
++ * Xiaomi POCO X3 Pro (vayu / j20s).
++ *
++ * Init sequence, timings and DSC parameters taken from the vendor device
++ * tree (dsi-panel-j20s-36-02-0a-lcd-dsc-vid.dtsi).
++ *
++ * The LCD bias rails (LAB/IBB from the PM8150L LCDB block) have no mainline
++ * driver yet, so they are optional here: when absent we rely on the
++ * bootloader leaving them enabled. Backlight is driven by PM8150L WLED.
++ */
++
++#include <linux/delay.h>
++#include <linux/gpio/consumer.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/regulator/consumer.h>
++
++#include <drm/display/drm_dsc.h>
++#include <drm/display/drm_dsc_helper.h>
++#include <drm/drm_mipi_dsi.h>
++#include <drm/drm_modes.h>
++#include <drm/drm_panel.h>
++
++#include <video/mipi_display.h>
++
++struct nt36672c_j20s {
++	struct drm_panel panel;
++	struct mipi_dsi_device *dsi;
++	struct drm_dsc_config dsc;
++	struct regulator *vddio;
++	struct regulator *lab;
++	struct regulator *ibb;
++	struct gpio_desc *reset_gpio;
++};
++
++static inline struct nt36672c_j20s *to_nt36672c_j20s(struct drm_panel *panel)
++{
++	return container_of(panel, struct nt36672c_j20s, panel);
++}
++
++/* qcom,mdss-dsi-reset-sequence = <1 5>, <0 1>, <1 10>; (GPIO is active low) */
++static void nt36672c_j20s_reset(struct nt36672c_j20s *ctx)
++{
++	gpiod_set_value_cansleep(ctx->reset_gpio, 0);
++	usleep_range(5000, 6000);
++	gpiod_set_value_cansleep(ctx->reset_gpio, 1);
++	usleep_range(1000, 2000);
++	gpiod_set_value_cansleep(ctx->reset_gpio, 0);
++	usleep_range(10000, 11000);
++}
++
++static void nt36672c_j20s_on(struct mipi_dsi_multi_context *dsi_ctx)
++{
++	/* DDIC initial code */
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xff, 0x24);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xfb, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x4d, 0x02);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x4e, 0x30);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x4f, 0x30);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x53, 0x30);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x7a, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x7b, 0x8c);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x7d, 0x05);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x80, 0x05);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x81, 0x05);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xa0, 0x0c);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xa2, 0x0c);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xa3, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xa4, 0x05);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xa5, 0x05);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xc4, 0x80);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xc6, 0xc0);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xe9, 0x02);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xff, 0x25);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xfb, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xda, 0x00);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xe0, 0x00);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xf1, 0x04);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xff, 0x2b);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xfb, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xb7, 0x08);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xb8, 0x1a);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xc0, 0x04);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xff, 0xf0);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xfb, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x1c, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x33, 0x01);
++
++	/* CABC setting */
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xff, 0x23);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xfb, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x00, 0x80);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x01, 0x84);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x05, 0x2d);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x06, 0x00);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x07, 0x00);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x08, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x09, 0x45);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x11, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x12, 0x95);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x15, 0x68);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x16, 0x0b);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x29, 0x0a);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x30, 0xff);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x31, 0xfe);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x32, 0xfd);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x33, 0xfb);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x34, 0xf8);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x35, 0xf5);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x36, 0xf3);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x37, 0xf2);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x38, 0xf2);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x39, 0xf2);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x3a, 0xef);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x3b, 0xec);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x3d, 0xe9);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x3f, 0xe5);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x40, 0xe5);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x41, 0xe5);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x2a, 0x13);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x45, 0xff);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x46, 0xf4);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x47, 0xe7);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x48, 0xda);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x49, 0xcd);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x4a, 0xc0);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x4b, 0xb3);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x4c, 0xb2);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x4d, 0xb2);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x4e, 0xb2);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x4f, 0x99);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x50, 0x80);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x51, 0x68);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x52, 0x66);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x53, 0x66);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x54, 0x66);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x2b, 0x0e);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x58, 0xff);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x59, 0xfb);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x5a, 0xf7);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x5b, 0xf3);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x5c, 0xef);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x5d, 0xe3);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x5e, 0xda);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x5f, 0xd8);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x60, 0xd8);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x61, 0xd8);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x62, 0xcb);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x63, 0xbf);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x64, 0xb3);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x65, 0xb2);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x66, 0xb2);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x67, 0xb2);
++
++	/* ESD setting */
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xff, 0x27);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xfb, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x40, 0x20);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xff, 0x10);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xfb, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xc0, 0x03);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, MIPI_DCS_SET_DISPLAY_BRIGHTNESS,
++				     0x0d, 0xb5);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, MIPI_DCS_WRITE_CONTROL_DISPLAY,
++				     0x24);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xff, 0x10);
++
++	mipi_dsi_dcs_exit_sleep_mode_multi(dsi_ctx);
++	mipi_dsi_msleep(dsi_ctx, 70);
++	mipi_dsi_dcs_set_display_on_multi(dsi_ctx);
++
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xff, 0x27);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xfb, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x3f, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x43, 0x08);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x40, 0x25);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xff, 0x10);
++}
++
++static void nt36672c_j20s_off(struct mipi_dsi_multi_context *dsi_ctx)
++{
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xff, 0x27);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xfb, 0x01);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0x3f, 0x00);
++	mipi_dsi_dcs_write_seq_multi(dsi_ctx, 0xff, 0x10);
++	mipi_dsi_dcs_set_display_off_multi(dsi_ctx);
++	mipi_dsi_dcs_enter_sleep_mode_multi(dsi_ctx);
++	mipi_dsi_msleep(dsi_ctx, 70);
++}
++
++static int nt36672c_j20s_regulators_enable(struct nt36672c_j20s *ctx)
++{
++	int ret;
++
++	ret = regulator_enable(ctx->vddio);
++	if (ret)
++		return ret;
++	usleep_range(20000, 21000);
++
++	if (ctx->lab) {
++		ret = regulator_enable(ctx->lab);
++		if (ret)
++			goto err_vddio;
++	}
++
++	if (ctx->ibb) {
++		ret = regulator_enable(ctx->ibb);
++		if (ret)
++			goto err_lab;
++		usleep_range(20000, 21000);
++	}
++
++	return 0;
++
++err_lab:
++	if (ctx->lab)
++		regulator_disable(ctx->lab);
++err_vddio:
++	regulator_disable(ctx->vddio);
++	return ret;
++}
++
++static void nt36672c_j20s_regulators_disable(struct nt36672c_j20s *ctx)
++{
++	if (ctx->ibb)
++		regulator_disable(ctx->ibb);
++	if (ctx->lab)
++		regulator_disable(ctx->lab);
++	regulator_disable(ctx->vddio);
++}
++
++static int nt36672c_j20s_prepare(struct drm_panel *panel)
++{
++	struct nt36672c_j20s *ctx = to_nt36672c_j20s(panel);
++	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
++	struct drm_dsc_picture_parameter_set pps;
++	int ret;
++
++	ret = nt36672c_j20s_regulators_enable(ctx);
++	if (ret)
++		return ret;
++
++	nt36672c_j20s_reset(ctx);
++
++	ctx->dsi->mode_flags |= MIPI_DSI_MODE_LPM;
++	nt36672c_j20s_on(&dsi_ctx);
++
++	drm_dsc_pps_payload_pack(&pps, &ctx->dsc);
++	mipi_dsi_picture_parameter_set_multi(&dsi_ctx, &pps);
++	mipi_dsi_compression_mode_ext_multi(&dsi_ctx, true,
++					    MIPI_DSI_COMPRESSION_DSC, 0);
++	ctx->dsi->mode_flags &= ~MIPI_DSI_MODE_LPM;
++
++	if (dsi_ctx.accum_err) {
++		gpiod_set_value_cansleep(ctx->reset_gpio, 1);
++		nt36672c_j20s_regulators_disable(ctx);
++	}
++
++	return dsi_ctx.accum_err;
++}
++
++static int nt36672c_j20s_unprepare(struct drm_panel *panel)
++{
++	struct nt36672c_j20s *ctx = to_nt36672c_j20s(panel);
++	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
++
++	nt36672c_j20s_off(&dsi_ctx);
++
++	gpiod_set_value_cansleep(ctx->reset_gpio, 1);
++	nt36672c_j20s_regulators_disable(ctx);
++
++	return 0;
++}
++
++/* timing@0 from the vendor DT: 1080x2400@120, video mode */
++static const struct drm_display_mode nt36672c_j20s_mode = {
++	.clock = (1080 + 67 + 12 + 40) * (2400 + 33 + 2 + 30) * 120 / 1000,
++	.hdisplay = 1080,
++	.hsync_start = 1080 + 67,
++	.hsync_end = 1080 + 67 + 12,
++	.htotal = 1080 + 67 + 12 + 40,
++	.vdisplay = 2400,
++	.vsync_start = 2400 + 33,
++	.vsync_end = 2400 + 33 + 2,
++	.vtotal = 2400 + 33 + 2 + 30,
++	.width_mm = 70,
++	.height_mm = 154,
++	.type = DRM_MODE_TYPE_DRIVER,
++};
++
++static int nt36672c_j20s_get_modes(struct drm_panel *panel,
++				   struct drm_connector *connector)
++{
++	struct drm_display_mode *mode;
++
++	mode = drm_mode_duplicate(connector->dev, &nt36672c_j20s_mode);
++	if (!mode)
++		return -ENOMEM;
++
++	drm_mode_set_name(mode);
++
++	mode->type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
++	connector->display_info.width_mm = mode->width_mm;
++	connector->display_info.height_mm = mode->height_mm;
++	drm_mode_probed_add(connector, mode);
++
++	return 1;
++}
++
++static const struct drm_panel_funcs nt36672c_j20s_panel_funcs = {
++	.prepare = nt36672c_j20s_prepare,
++	.unprepare = nt36672c_j20s_unprepare,
++	.get_modes = nt36672c_j20s_get_modes,
++};
++
++static struct regulator *nt36672c_j20s_get_optional(struct device *dev,
++						     const char *id)
++{
++	struct regulator *reg = devm_regulator_get_optional(dev, id);
++
++	if (IS_ERR(reg)) {
++		if (PTR_ERR(reg) == -ENODEV) {
++			dev_info(dev, "no %s supply, relying on bootloader state\n", id);
++			return NULL;
++		}
++		return reg;
++	}
++
++	return reg;
++}
++
++static int nt36672c_j20s_probe(struct mipi_dsi_device *dsi)
++{
++	struct device *dev = &dsi->dev;
++	struct nt36672c_j20s *ctx;
++	int ret;
++
++	ctx = devm_kzalloc(dev, sizeof(*ctx), GFP_KERNEL);
++	if (!ctx)
++		return -ENOMEM;
++
++	ctx->vddio = devm_regulator_get(dev, "vddio");
++	if (IS_ERR(ctx->vddio))
++		return dev_err_probe(dev, PTR_ERR(ctx->vddio),
++				     "Failed to get vddio supply\n");
++
++	ctx->lab = nt36672c_j20s_get_optional(dev, "lab");
++	if (IS_ERR(ctx->lab))
++		return dev_err_probe(dev, PTR_ERR(ctx->lab),
++				     "Failed to get lab supply\n");
++
++	ctx->ibb = nt36672c_j20s_get_optional(dev, "ibb");
++	if (IS_ERR(ctx->ibb))
++		return dev_err_probe(dev, PTR_ERR(ctx->ibb),
++				     "Failed to get ibb supply\n");
++
++	/* Keep the panel as the bootloader left it until we take over. */
++	ctx->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_ASIS);
++	if (IS_ERR(ctx->reset_gpio))
++		return dev_err_probe(dev, PTR_ERR(ctx->reset_gpio),
++				     "Failed to get reset-gpios\n");
++
++	ctx->dsi = dsi;
++	mipi_dsi_set_drvdata(dsi, ctx);
++
++	dsi->lanes = 4;
++	dsi->format = MIPI_DSI_FMT_RGB888;
++	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST |
++			  MIPI_DSI_CLOCK_NON_CONTINUOUS;
++
++	drm_panel_init(&ctx->panel, dev, &nt36672c_j20s_panel_funcs,
++		       DRM_MODE_CONNECTOR_DSI);
++	ctx->panel.prepare_prev_first = true;
++
++	/* Backlight is provided by PM8150L WLED via the "backlight" property */
++	ret = drm_panel_of_backlight(&ctx->panel);
++	if (ret)
++		return dev_err_probe(dev, ret, "Failed to get backlight\n");
++
++	drm_panel_add(&ctx->panel);
++
++	/* This panel only works with DSC enabled */
++	dsi->dsc = &ctx->dsc;
++	/*
++	 * TODO: vendor DT uses qcom,mdss-dsc-slice-per-pkt = <2>; msm DSI in
++	 * this kernel always sends one slice per packet. If the picture is
++	 * garbled, backport upstream slice_per_pkt support.
++	 */
++
++	ctx->dsc.dsc_version_major = 1;
++	ctx->dsc.dsc_version_minor = 1;
++	ctx->dsc.slice_height = 20;
++	ctx->dsc.slice_width = 540;
++	ctx->dsc.slice_count = 1080 / ctx->dsc.slice_width;
++	ctx->dsc.bits_per_component = 8;
++	ctx->dsc.bits_per_pixel = 8 << 4; /* 4 fractional bits */
++	ctx->dsc.block_pred_enable = true;
++
++	ret = mipi_dsi_attach(dsi);
++	if (ret < 0) {
++		dev_err(dev, "Failed to attach to DSI host: %d\n", ret);
++		drm_panel_remove(&ctx->panel);
++		return ret;
++	}
++
++	return 0;
++}
++
++static void nt36672c_j20s_remove(struct mipi_dsi_device *dsi)
++{
++	struct nt36672c_j20s *ctx = mipi_dsi_get_drvdata(dsi);
++	int ret;
++
++	ret = mipi_dsi_detach(dsi);
++	if (ret < 0)
++		dev_err(&dsi->dev, "Failed to detach from DSI host: %d\n", ret);
++
++	drm_panel_remove(&ctx->panel);
++}
++
++static const struct of_device_id nt36672c_j20s_of_match[] = {
++	{ .compatible = "xiaomi,vayu-nt36672c-tianma" },
++	{ /* sentinel */ }
++};
++MODULE_DEVICE_TABLE(of, nt36672c_j20s_of_match);
++
++static struct mipi_dsi_driver nt36672c_j20s_driver = {
++	.probe = nt36672c_j20s_probe,
++	.remove = nt36672c_j20s_remove,
++	.driver = {
++		.name = "panel-novatek-nt36672c-j20s",
++		.of_match_table = nt36672c_j20s_of_match,
++	},
++};
++module_mipi_dsi_driver(nt36672c_j20s_driver);
++
++MODULE_DESCRIPTION("DRM driver for the Tianma NT36672C panel in Xiaomi POCO X3 Pro");
++MODULE_LICENSE("GPL");
+-- 
+2.43.0
+

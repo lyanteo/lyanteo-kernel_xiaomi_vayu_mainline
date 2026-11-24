@@ -1,30 +1,36 @@
-# Kernel mainline untuk POCO X3 Pro (vayu)
+# Kernel mainline 6.13 untuk POCO X3 Pro (vayu)
 
-Eksperimen menjalankan **kernel Linux mainline 7.x** (bukan kernel vendor 4.14) di POCO X3 Pro,
-sebagai dasar AOSP dengan driver open-source (Mesa/freedreno).
+Kernel Linux **6.13** (sm8150-mainline) + patch khusus vayu, bukan kernel vendor 4.14.
 
-> ⚠️ Status: **eksperimen, belum bisa dipakai harian.**
-> Semua image di sini untuk `fastboot boot` (sekali jalan). **Jangan `fastboot flash`.**
+> ⚠️ Status: **eksperimen, belum pernah dites di HP.** Jangan flash ke HP yang dipakai harian.
 
-Source kernel: [qualcomm-sm8150/linux](https://gitlab.nura.eco/soc/qualcomm-sm8150/linux)
-(cadangan: [sm8150-mainline/linux](https://gitlab.com/sm8150-mainline/linux)), tag `*-sm8150` terbaru,
-yang sudah memiliki device tree `sm8150-xiaomi-vayu-tianma` dan `sm8150-xiaomi-vayu-huaxing`.
+## Isi
 
-## Workflow
+| Patch | Isi |
+|---|---|
+| `0001` | Driver touchscreen NT36672C SPI (dari port postmarketOS 6.4) |
+| `0002` | Device tree `sm8150-xiaomi-vayu` (layar via framebuffer bootloader) |
+| `0003` | Driver panel **Tianma 36 02 0a** (NT36672C, 1080x2400@120, DSC) + DTB `sm8150-xiaomi-vayu-tianma` |
+| `0004` | Ramoops di alamat yang sama dengan kernel vendor → log crash bisa dibaca dari ROM Android (`/sys/fs/pstore`) |
+| `0005` | Perbaikan driver touchscreen agar bisa dikompilasi di 6.13 |
 
-| Workflow | Isi | Kapan jalan |
-|---|---|---|
-| **1 - Kernel** | Build `Image.gz`, DTB vayu, modul. Config arm64 + fragment sm8150 + fragment Android (`kernel/`). Gagal bila opsi Android wajib tidak aktif. | Push ke `kernel/**`, atau manual |
-| **2 - Boot-test** | Bungkus kernel + initramfs debug (`stage1/`) jadi `boot-test-tianma.img` / `boot-test-huaxing.img`. | Otomatis setelah workflow 1 sukses, atau manual (isi Run ID workflow 1) |
-| **3 - Inspeksi vendor** | Bongkar ROM Infinity-X untuk acuan format boot.img & firmware. | Manual |
-| **4 - Tes tanpa PC** | Kernel 6.4 (dipakai postmarketOS untuk vayu) + ramoops → image untuk partisi **recovery**, diterbitkan sebagai Release. Log dibaca dari Infinity-X. Lihat [`tanpa-pc/CARA-TES-TANPA-PC.txt`](tanpa-pc/CARA-TES-TANPA-PC.txt). | Push ke `tanpa-pc/**`, atau manual |
+- Source dasar: [sm8150-mainline/linux](https://gitlab.com/sm8150-mainline/linux) tag `v6.13.0-sm8150`
+- `vayu.config`: opsi tambahan (panel, pstore) di atas `defconfig` + `sm8150.config`
+- `initramfs/init`: busybox, buka shell lewat USB (serial ACM + telnet `172.16.42.1`)
 
-Cara menguji: lihat [`stage1/CARA-TES.txt`](stage1/CARA-TES.txt).
-Panel HP: cek `cat /proc/cmdline` → `j20s_36_02_0a` = **Tianma**, `j20s_42_02_0b` = **Huaxing**.
+## Build
 
-## Yang diharapkan berfungsi / tidak
+Otomatis di GitHub Actions (**Build kernel 6.13 vayu**) setiap ada perubahan di `patches/`, `initramfs/`, atau `vayu.config`.
+Hasil (artifact): `Image.gz`, DTB, `boot-6.13-vayu.img` (layar framebuffer, paling aman) dan `boot-6.13-vayu-tianma.img` (driver panel).
 
-- Target realistis: layar, sentuh, GPU (freedreno), USB/adb, Wi-Fi, charging.
-- Belum ada driver open-source: **kamera** dan **modem (telepon/data)**.
+## Yang sudah diverifikasi
 
-Rencana lengkap: [`docs/aosp-mainline.md`](docs/aosp-mainline.md).
+- Patch diterapkan bersih ke `v6.13.0-sm8150`.
+- Driver touchscreen, panel, notifier DRM, dan kedua DTB lolos kompilasi.
+- Peta reserved-memory DTS vayu sama dengan kernel vendor (tejas101k/kernel_xiaomi_vayu).
+
+## Risiko yang diketahui
+
+- Panel: kernel ini mengirim DSC 1 slice per paket, panel vendor memakai 2 → gambar bisa rusak di DTB `-tianma`.
+- Regulator LCDB (LAB/IBB) belum ada driver mainline → mengandalkan kondisi dari bootloader.
+- Kamera dan modem belum ada driver open-source.

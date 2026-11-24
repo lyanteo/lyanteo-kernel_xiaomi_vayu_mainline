@@ -1,0 +1,121 @@
+From 5d5ce0097c55d002bbb982efdaf1861bd096b59a Mon Sep 17 00:00:00 2001
+From: lyanteo <lyanteo@users.noreply.github.com>
+Date: Tue, 24 Nov 2026 18:06:21 +0000
+Subject: [PATCH] input: touchscreen: nt36672c/xiaomi: fix build on 6.13
+
+- spi->master / SPI_MASTER_HALF_DUPLEX -> spi->controller /
+  SPI_CONTROLLER_HALF_DUPLEX
+- platform_driver .remove now returns void
+- no_llseek removed -> noop_llseek
+- strlcpy removed -> strscpy
+- add (void) to prototype-less getters (-Werror=strict-prototypes)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0192C5wPw4AwnF1EyMXZJ5bh
+---
+ drivers/input/touchscreen/nt36672c/nt36xxx.c    |  5 ++---
+ drivers/input/touchscreen/spi-xiaomi-tp.c       |  4 ++--
+ drivers/input/touchscreen/xiaomi/xiaomi_touch.c | 10 ++++------
+ 3 files changed, 8 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/input/touchscreen/nt36672c/nt36xxx.c b/drivers/input/touchscreen/nt36672c/nt36xxx.c
+index 3801bca11d0b..3abb0714c765 100644
+--- a/drivers/input/touchscreen/nt36672c/nt36xxx.c
++++ b/drivers/input/touchscreen/nt36672c/nt36xxx.c
+@@ -2333,7 +2333,7 @@ static int32_t nvt_ts_probe(struct platform_device *pdev)
+ 	spi_set_drvdata(ts->client, ts);
+ 
+ 	/* ---prepare for spi parameter--- */
+-	if (ts->client->master->flags & SPI_MASTER_HALF_DUPLEX) {
++	if (ts->client->controller->flags & SPI_CONTROLLER_HALF_DUPLEX) {
+ 		NVT_ERR("Full duplex not supported by master\n");
+ 		ret = -EIO;
+ 		goto err_ckeck_full_duplex;
+@@ -2692,7 +2692,7 @@ nvt_flash_proc_deinit();
+ return:
+ 	Executive outcomes. 0---succeed.
+ *******************************************************/
+-static int32_t nvt_ts_remove(struct platform_device *pdev)
++static void nvt_ts_remove(struct platform_device *pdev)
+ {
+ 	NVT_LOG("Removing driver...\n");
+ 
+@@ -2755,7 +2755,6 @@ static int32_t nvt_ts_remove(struct platform_device *pdev)
+ 		ts = NULL;
+ 	}
+ 
+-	return 0;
+ }
+ 
+ static void nvt_ts_shutdown(struct platform_device *pdev)
+diff --git a/drivers/input/touchscreen/spi-xiaomi-tp.c b/drivers/input/touchscreen/spi-xiaomi-tp.c
+index 97e9466dec13..051bdaa60ee6 100644
+--- a/drivers/input/touchscreen/spi-xiaomi-tp.c
++++ b/drivers/input/touchscreen/spi-xiaomi-tp.c
+@@ -74,7 +74,7 @@ int32_t get_ts_xsfer(const char *name)
+ 		return -EPERM;
+ 	}
+ 	owner.used = true;
+-	strlcpy(owner.name, name, NAME_MAX_LENS);
++	strscpy(owner.name, name, NAME_MAX_LENS);
+ 	mutex_unlock(&owner.lock);
+ 	return 0;
+ }
+@@ -119,7 +119,7 @@ struct spi_device *test_then_get_spi(const char *name)
+ 		owner.used = true;
+ 		ret = owner.client;
+ 		if (name)
+-			strlcpy(owner.name, name, NAME_MAX_LENS);
++			strscpy(owner.name, name, NAME_MAX_LENS);
+ 	}
+ 	mutex_unlock(&owner.lock);
+ 
+diff --git a/drivers/input/touchscreen/xiaomi/xiaomi_touch.c b/drivers/input/touchscreen/xiaomi/xiaomi_touch.c
+index 3fdf2013bc70..678af4f3c39d 100644
+--- a/drivers/input/touchscreen/xiaomi/xiaomi_touch.c
++++ b/drivers/input/touchscreen/xiaomi/xiaomi_touch.c
+@@ -110,7 +110,7 @@ static const struct file_operations xiaomitouch_dev_fops = {
+ 	.unlocked_ioctl = xiaomi_touch_dev_ioctl,
+ 	.compat_ioctl = xiaomi_touch_dev_ioctl,
+ 	.release = xiaomi_touch_dev_release,
+-	.llseek	= no_llseek,
++	.llseek	= noop_llseek,
+ };
+ 
+ static struct xiaomi_touch xiaomi_touch_dev = {
+@@ -134,12 +134,12 @@ struct xiaomi_touch *xiaomi_touch_dev_get(int minor)
+ 		return NULL;
+ }
+ 
+-struct class *get_xiaomi_touch_class()
++struct class *get_xiaomi_touch_class(void)
+ {
+ 	return xiaomi_touch_dev.class;
+ }
+ 
+-struct device *get_xiaomi_touch_dev()
++struct device *get_xiaomi_touch_dev(void)
+ {
+ 	return xiaomi_touch_dev.dev;
+ }
+@@ -458,7 +458,7 @@ static int xiaomi_touch_probe(struct platform_device *pdev)
+ 	return ret;
+ }
+ 
+-static int xiaomi_touch_remove(struct platform_device *pdev)
++static void xiaomi_touch_remove(struct platform_device *pdev)
+ {
+ 	device_destroy(xiaomi_touch_dev.class, 0);
+ 	class_destroy(xiaomi_touch_dev.class);
+@@ -467,8 +467,6 @@ static int xiaomi_touch_remove(struct platform_device *pdev)
+ 		kfree(touch_pdata->touch_data);
+ 		touch_pdata->touch_data = NULL;
+ 	}
+-
+-	return 0;
+ }
+ 
+ static struct platform_driver xiaomi_touch_device_driver = {
+-- 
+2.43.0
+

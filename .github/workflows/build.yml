@@ -1,0 +1,93 @@
+name: Build kernel 6.13 vayu
+
+# sm8150-mainline v6.13 + patch vayu di patches/6.13/
+# Hasil: Image.gz, DTB, dan boot image (header v0, DTB ditempel, sama
+# dengan format postmarketOS untuk vayu).
+
+on:
+  push:
+    branches: [main]
+    paths: ["patches/**", "initramfs/**", "vayu.config", ".github/workflows/build.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  ARCH: arm64
+  LLVM: "1"
+  KERNEL_REPO: https://gitlab.com/sm8150-mainline/linux.git
+  KERNEL_TAG: v6.13.0-sm8150
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Alat
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang lld llvm flex bison bc libssl-dev libelf-dev cpio python3 file
+          git clone -q --depth 1 https://android.googlesource.com/platform/system/tools/mkbootimg /opt/mkbootimg
+          DEB=$(curl -fsSL http://ports.ubuntu.com/pool/universe/b/busybox/ | grep -o 'busybox-static_[^"]*_arm64\.deb' | sort -uV | tail -n1)
+          echo "busybox: $DEB"
+          curl -fsSL -o busybox.deb "http://ports.ubuntu.com/pool/universe/b/busybox/$DEB"
+          dpkg-deb -x busybox.deb bb
+          BB=$(find bb -type f -name busybox | head -n1)
+          echo "BB=$BB" >> "$GITHUB_ENV"
+          file "$BB"
+          file "$BB" | grep -q "ARM aarch64"
+          file "$BB" | grep -q "statically linked"
+
+      - name: Source kernel + patch vayu
+        run: |
+          git clone -q --depth 1 --branch "$KERNEL_TAG" "$KERNEL_REPO" linux
+          cd linux
+          git -c user.name=ci -c user.email=ci@localhost am -q --whitespace=nowarn ../patches/6.13/*.patch
+          git log --oneline -7
+          cp ../vayu.config arch/arm64/configs/vayu.config
+
+      - name: Config
+        run: |
+          cd linux
+          make -s O=out defconfig sm8150.config vayu.config
+          for o in DRM_PANEL_NOVATEK_NT36672C_J20S TOUCHSCREEN_NT36xxx_HOSTDL_SPI PSTORE_RAM PSTORE_CONSOLE \
+                   DRM_MSM BACKLIGHT_QCOM_WLED FB_SIMPLE FRAMEBUFFER_CONSOLE USB_DWC3_QCOM USB_CONFIGFS_ACM \
+                   USB_CONFIGFS_NCM BLK_DEV_INITRD RD_GZIP DEVTMPFS; do
+            grep -q "^CONFIG_$o=y" out/.config || { echo "::error::CONFIG_$o tidak =y"; exit 1; }
+          done
+          echo "Semua opsi wajib aktif"
+
+      - name: Build
+        run: |
+          cd linux
+          make O=out -j"$(nproc)" Image.gz qcom/sm8150-xiaomi-vayu.dtb qcom/sm8150-xiaomi-vayu-tianma.dtb 2>&1 | tee ../build.log | grep -E "error|warning: .*(nt36672c|xiaomi|j20s)" || true
+          test -f out/arch/arm64/boot/Image.gz
+          out/scripts/dtc/dtc -I dtb -O dts out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb 2>/dev/null | grep -A2 "ramoops@a1600000"
+
+      - name: Initramfs + boot image
+        run: |
+          mkdir -p rd/bin dist
+          cp "$BB" rd/bin/busybox
+          cp initramfs/init rd/init
+          chmod 755 rd/init rd/bin/busybox
+          (cd rd && find . | cpio -o -H newc -R root:root --quiet | gzip -9) > initramfs.cpio.gz
+          for v in vayu vayu-tianma; do
+            cat linux/out/arch/arm64/boot/Image.gz linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-$v.dtb > Image.gz-dtb
+            python3 /opt/mkbootimg/mkbootimg.py --header_version 0 --pagesize 4096 \
+              --base 0x00000000 --kernel_offset 0x00008000 --ramdisk_offset 0x01000000 \
+              --second_offset 0x00f00000 --tags_offset 0x00000100 \
+              --kernel Image.gz-dtb --ramdisk initramfs.cpio.gz \
+              --cmdline "console=tty0 loglevel=7 ignore_loglevel panic=10 clk_ignore_unused pd_ignore_unused" \
+              -o dist/boot-6.13-$v.img
+          done
+          cp linux/out/arch/arm64/boot/Image.gz linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu*.dtb dist/
+          cp linux/out/.config dist/kernel.config
+          cd dist && sha256sum * > SHA256SUMS && ls -lh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kernel-6.13-vayu
+          path: dist/

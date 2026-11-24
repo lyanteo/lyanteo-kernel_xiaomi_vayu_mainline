@@ -1,0 +1,39 @@
+From fdf634586d8298027ef1ebb44bff38bacf5f1020 Mon Sep 17 00:00:00 2001
+From: lyanteo <lyanteo@users.noreply.github.com>
+Date: Tue, 24 Nov 2026 18:05:04 +0000
+Subject: [PATCH] arm64: dts: qcom: vayu: add ramoops matching vendor layout
+
+Same region and sizes as the vendor kernel (0xa1600000, 8 MiB, console
+4 MiB, pmsg 4 MiB) so a crash log of this kernel can be read from
+/sys/fs/pstore after rebooting into the stock Android ROM.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0192C5wPw4AwnF1EyMXZJ5bh
+---
+ arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dts | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dts
+index eeffc802bd56..118c755b7351 100644
+--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dts
+@@ -66,6 +66,16 @@ framebuffer: framebuffer@9c000000 {
+ 	
+ 
+ 	reserved-memory {
++		/* Sama dengan kernel vendor (tejas101k/kernel_xiaomi_vayu sm8150.dtsi)
++		 * supaya log bisa dibaca dari ROM Android setelah restart. */
++		ramoops@a1600000 {
++			compatible = "ramoops";
++			reg = <0x0 0xa1600000 0x0 0x800000>;
++			record-size = <0x80000>;
++			console-size = <0x400000>;
++			pmsg-size = <0x400000>;
++		};
++
+ 		tz_mem: memory@86200000 {
+ 			reg = <0x0 0x86200000 0x0 0x5500000>;
+ 			no-map;
+-- 
+2.43.0
+
