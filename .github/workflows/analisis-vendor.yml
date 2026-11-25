@@ -36,7 +36,9 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq brotli erofs-utils e2fsprogs android-sdk-libsparse-utils unzip file python3-pip jq flex bison
           # secilc Ubuntu (3.5) belum mengenal aturan "nlmsg" Android baru -> pakai 3.9 dari source
-          git clone -q --depth 1 -b 3.9 https://github.com/SELinuxProject/selinux /tmp/se
+          # master: policy Android 17 memakai policycap functionfs_seclabel (belum ada di rilis 3.9)
+          git clone -q --depth 1 https://github.com/SELinuxProject/selinux /tmp/se
+          git -C /tmp/se log -1 --format='selinux %h %cd'
           make -s -C /tmp/se/libsepol -j"$(nproc)" DESTDIR=/tmp/sepinst install >/dev/null
           # link statis ke libsepol 3.9 (bukan libsepol lama milik sistem)
           gcc -O2 -I/tmp/sepinst/usr/include /tmp/se/secilc/secilc.c -o /tmp/secilc /tmp/sepinst/usr/lib/libsepol.a

@@ -4,6 +4,8 @@
 # Pakai: cek_sepolicy.sh <dir_sistem(s)> <dir_vendor(v)> <versi_mapping_dipakai> [ganti_versi_vendor]
 #   ganti_versi_vendor: kalau diisi (mis. 202604), akhiran _202604 di cil vendor
 #   diganti _<versi_mapping> (uji "turunkan versi vendor").
+# Kalau gagal, aturan vendor/odm penyebabnya dinonaktifkan satu per satu dan
+# kompilasi diulang, sehingga SEMUA aturan yang tidak cocok terdaftar.
 set -uo pipefail
 S=$1; V=$2; VER=$3; DARI=${4:-}
 T=$(mktemp -d)
@@ -24,13 +26,34 @@ args+=("$T/plat_pub_versioned.cil" "$T/vendor_sepolicy.cil")
 [ -n "$odm" ] && args+=("$odm")
 echo "secilc dengan mapping $VER${DARI:+ (vendor $DARI diturunkan ke $VER)}:"
 printf '  %s\n' "${args[@]#$S/}"
-if secilc -m -M true -G -N -c 30 "${args[@]}" -o "$T/policy" -f /dev/null > "$T/log" 2>&1; then
-	echo "HASIL: ✅ kebijakan SELinux berhasil dikompilasi ($(stat -c %s "$T/policy") byte)"
+
+kompilasi() { secilc -m -M true -G -N -c 30 "${args[@]}" -o "$T/policy" -f /dev/null > "$T/log" 2>&1; }
+
+: > "$T/dibuang"
+n=0
+until kompilasi; do
+	# Kesalahan di file vendor/odm (salinan di $T) -> catat & nonaktifkan barisnya
+	loc=$(grep -oE "at $T/[a-z_]+\.cil:[0-9]+" "$T/log" | head -n1)
+	if [ -z "$loc" ] || [ $n -ge 400 ]; then
+		echo "HASIL: ❌ gagal dikompilasi (bukan di aturan vendor, atau terlalu banyak). Kesalahan:"
+		grep -v '^$' "$T/log" | head -20
+		[ $n -gt 0 ] && { echo; echo "Aturan vendor/odm yang tidak cocok ($n):"; cat "$T/dibuang"; }
+		rm -rf "$T"; exit 1
+	fi
+	f=${loc#at }; f=${f%:*}; l=${loc##*:}
+	asal=$(grep -oE "from [^ ]+\.te:[0-9]+" "$T/log" | head -n1)
+	echo "$(basename "$f"):$l ${asal#from } :: $(sed -n "${l}p" "$f" | cut -c1-160)" >> "$T/dibuang"
+	sed -i "${l}s/^/;/" "$f"
+	n=$((n+1))
+done
+if [ $n -eq 0 ]; then
+	echo "HASIL: ✅ kebijakan SELinux berhasil dikompilasi tanpa perubahan ($(stat -c %s "$T/policy") byte)"
 	r=0
 else
-	echo "HASIL: ❌ gagal dikompilasi. Kesalahan:"
-	grep -v '^$' "$T/log" | head -40
-	r=1
+	echo "HASIL: ⚠️ berhasil dikompilasi SETELAH $n aturan vendor/odm dinonaktifkan:"
+	cat "$T/dibuang"
+	echo "Tipe/atribut yang dirujuk aturan tsb tidak ada di sistem ini."
+	r=2
 fi
 rm -rf "$T"
 exit $r
