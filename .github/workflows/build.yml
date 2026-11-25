@@ -72,7 +72,7 @@ jobs:
           make -s O=out CC="ccache clang" defconfig sm8150.config vayu.config
           for o in DRM_PANEL_NOVATEK_NT36672C_J20S TOUCHSCREEN_NT36xxx_HOSTDL_SPI PSTORE_RAM PSTORE_CONSOLE \
                    DRM_MSM BACKLIGHT_QCOM_WLED FB_SIMPLE FRAMEBUFFER_CONSOLE USB_DWC3_QCOM USB_CONFIGFS_ACM \
-                   USB_CONFIGFS_NCM BLK_DEV_INITRD RD_GZIP DEVTMPFS MMC_SDHCI_MSM MMC_BLOCK VFAT_FS EXFAT_FS; do
+                   USB_CONFIGFS_NCM BLK_DEV_INITRD RD_GZIP DEVTMPFS MMC_SDHCI_MSM MMC_BLOCK VFAT_FS EXFAT_FS FONT_TER16x32; do
             grep -q "^CONFIG_$o=y" out/.config || { echo "::error::CONFIG_$o tidak =y"; exit 1; }
           done
           if grep -q "^CONFIG_PSTORE_COMPRESS=y" out/.config; then echo "::error::PSTORE_COMPRESS harus mati"; exit 1; fi
@@ -123,7 +123,7 @@ jobs:
               --os_version 16.0.0 --os_patch_level 2026-09 \
               --kernel linux/out/arch/arm64/boot/Image --ramdisk initramfs.cpio.gz \
               --dtb linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-$v.dtb \
-              --cmdline "console=tty0 loglevel=7 ignore_loglevel panic=10 reboot=warm clk_ignore_unused pd_ignore_unused" \
+              --cmdline "console=tty0 loglevel=7 ignore_loglevel panic=10 reboot=warm fbcon=font:TER16x32 clk_ignore_unused pd_ignore_unused" \
               -o dist/boot-6.13-$v.img
             python3 /opt/mkbootimg/unpack_bootimg.py --boot_img dist/boot-6.13-$v.img --out /tmp/chk-$v --format=info | head -20
           done
@@ -145,12 +145,13 @@ jobs:
           grep -q "Kernel panic" qemu.log && { echo "::error::kernel panic di QEMU"; tail -40 qemu.log; exit 1; }
           grep -q "vayu-initramfs: ready" qemu.log || { echo "::error::init tidak sampai siap"; tail -60 qemu.log; exit 1; }
           grep -q "VAYU-TES: kernel" qemu.log || { echo "::error::ringkasan VAYU-TES tidak tercatat"; exit 1; }
+          grep -q "VAYU-TES: RINGKASAN:" qemu.log || { echo "::error::baris RINGKASAN tidak tercatat"; exit 1; }
           grep -E "VAYU-TES|reboot|Restarting" qemu.log | tail -25
           grep -q "Restarting system with command 'recovery'" qemu.log || { echo "::error::restart ke recovery tidak terjadi"; tail -40 qemu.log; exit 1; }
           echo "--- isi kartu SD virtual ---"
           mdir -i sd.img ::/vayu-log
           mtype -i sd.img ::/vayu-log/log-1.txt | head -3
-          mtype -i sd.img ::/vayu-log/log-2.txt | grep -q "restart ke RECOVERY dalam 15 detik" \
+          mtype -i sd.img ::/vayu-log/log-2.txt | grep -q "restart ke RECOVERY dalam 10 detik" \
             || { echo "::error::log tidak tersimpan lengkap ke microSD"; exit 1; }
           echo "QEMU: kernel boot, init siap, ringkasan tercatat, log tersimpan ke SD, restart ke recovery terjadi"
 

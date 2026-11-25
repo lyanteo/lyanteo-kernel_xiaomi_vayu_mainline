@@ -20,6 +20,10 @@ Kedua image berisi initramfs kecil (busybox) yang **tidak me-mount atau menulis 
 2. mencatat ringkasan hardware (`VAYU-TES: ...`) ke log kernel → tersimpan di ramoops,
 3. setelah 60 detik **restart otomatis ke recovery** (tambahkan `vayu.tetap` di cmdline untuk mematikannya).
 
+**Layar ringkasan (tanpa foto):** sebelum restart, layar dibersihkan dan menampilkan ringkasan
+berhuruf besar (font 16×32) selama 60 detik: `MICROSD`, `RAMOOPS`, `PSCI`, `LAYAR`, `SENTUH`, `USB`, `UFS`,
+`CPU`, `MEMORI`, jumlah driver gagal. Cukup baca dan ketik ulang barisnya.
+
 **Log otomatis ke microSD:** kalau ada microSD (FAT32/exFAT), kernel tes menyimpan log lengkap ke
 `vayu-log/log-N.txt` di microSD (sekali saat init siap, sekali sebelum restart). Setelah kembali ke ROM,
 cukup buka file itu dengan file manager. Kernel tes hanya menyentuh microSD (`mmcblk*`), tidak pernah

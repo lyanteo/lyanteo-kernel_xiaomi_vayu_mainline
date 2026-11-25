@@ -117,23 +117,62 @@ simpan_ke_sd() {
 				sync
 				umount /mnt/sd
 				say "log disimpan ke microSD ($dev, $fs): vayu-log/log-$n.txt"
+				SD_HASIL="OK  vayu-log/log-$n.txt"
 				return 0
 			fi
 		done
 	done
 	say "microSD tidak ditemukan / bukan FAT32/exFAT; log hanya di ramoops ($(cat /tmp/mnt.err 2>/dev/null | head -c 120))"
+	if [ -z "$(ls /sys/class/block 2>/dev/null | grep '^mmcblk')" ]; then
+		SD_HASIL="GAGAL kartu tidak terdeteksi"
+	else
+		SD_HASIL="GAGAL tidak bisa mount"
+	fi
 	return 1
 }
 simpan_ke_sd "setelah init siap"
 
+# --- Layar ringkasan (huruf besar, bisa dibaca tanpa foto) ---
+ok() { if [ -n "$1" ]; then echo "OK"; else echo "GAGAL"; fi; }
+R_RAMOOPS=$(dmesg | grep -q 'ramoops: using' && echo OK || echo GAGAL)
+R_PSCI=$(dmesg | grep -o 'PSCIv[0-9.]*' | head -n 1)
+R_LAYAR=$(ok "$(ls /sys/class/graphics 2>/dev/null | grep fb)")
+R_SENTUH=$(grep -qiE 'nvt|novatek|touch' /proc/bus/input/devices 2>/dev/null && echo OK || echo GAGAL)
+R_USB=$(ok "$UDC")
+R_UFS=$(ok "$(ls /sys/class/block 2>/dev/null | grep '^sda')")
+R_CPU=$(cat /sys/devices/system/cpu/online 2>/dev/null)
+R_MEM=$(awk '/MemTotal/ {printf "%d MB", $2/1024}' /proc/meminfo)
+R_GAGAL=$(dmesg | grep -ciE 'probe.*failed|failed to probe')
+ringkasan() {
+	printf '\033[2J\033[H'
+	echo "===== HASIL TES VAYU ====="
+	echo "kernel  : $(uname -r | cut -c1-24)"
+	echo "MICROSD : $SD_HASIL"
+	echo "RAMOOPS : $R_RAMOOPS"
+	echo "PSCI    : ${R_PSCI:-?} (warm reset)"
+	echo "LAYAR   : $R_LAYAR"
+	echo "SENTUH  : $R_SENTUH"
+	echo "USB     : $R_USB"
+	echo "UFS     : $R_UFS"
+	echo "CPU     : $R_CPU"
+	echo "MEMORI  : $R_MEM"
+	echo "PROBE GAGAL: $R_GAGAL driver"
+	echo "=========================="
+	echo "Ketik ulang baris di atas"
+	echo "ke Claude."
+}
+say "RINGKASAN: microsd=[$SD_HASIL] ramoops=$R_RAMOOPS psci=$R_PSCI layar=$R_LAYAR sentuh=$R_SENTUH usb=$R_USB ufs=$R_UFS cpu=$R_CPU mem=$R_MEM gagal=$R_GAGAL"
+
 # Restart otomatis ke recovery setelah 60 detik (kecuali cmdline berisi
-# vayu.tetap), supaya log di atas bisa dibaca di recovery:
-#   cat /sys/fs/pstore/console-ramoops*
+# vayu.tetap). Pesan kernel ke layar dimatikan agar ringkasan tidak tergeser.
 if ! grep -q 'vayu.tetap' /proc/cmdline; then
-	for i in 60 45 30 15; do
-		say "restart ke RECOVERY dalam $i detik (ambil log di sana)"
-		sleep 15
+	echo 1 > /proc/sys/kernel/printk 2>/dev/null
+	for i in 60 50 40 30 20 10; do
+		{ ringkasan; echo; echo "Restart ke RECOVERY: $i detik"; } > /dev/tty0 2>/dev/null
+		echo "VAYU-TES: restart ke RECOVERY dalam $i detik" > /dev/kmsg
+		sleep 10
 	done
+	echo 7 > /proc/sys/kernel/printk 2>/dev/null
 	simpan_ke_sd "sebelum restart ke recovery"
 	say "restart ke recovery sekarang"
 	sync
