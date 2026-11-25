@@ -87,7 +87,10 @@ jobs:
           mkdir -p rd/bin dist
           cp "$BB" rd/bin/busybox
           cp initramfs/init rd/init
-          chmod 755 rd/init rd/bin/busybox
+          clang --target=aarch64-linux-gnu -static -nostdlib -ffreestanding -fno-stack-protector \
+            -O2 -fuse-ld=lld -o rd/bin/reboot-recovery initramfs/reboot-recovery.c
+          file rd/bin/reboot-recovery | grep -q "ARM aarch64"
+          chmod 755 rd/init rd/bin/busybox rd/bin/reboot-recovery
           (cd rd && find . | cpio -o -H newc -R root:root --quiet | gzip -9) > initramfs.cpio.gz
           # Format disamakan dengan boot.img Infinity-X 3.12 vayu (dicek dari ROM):
           # header v2, page 4096, kernel Image TIDAK terkompresi di 0x8000,
@@ -118,7 +121,10 @@ jobs:
           grep -E "Linux version|vayu-initramfs|Kernel panic|Unable to mount|not syncing" qemu.log | head -20
           grep -q "Kernel panic" qemu.log && { echo "::error::kernel panic di QEMU"; tail -40 qemu.log; exit 1; }
           grep -q "vayu-initramfs: ready" qemu.log || { echo "::error::init tidak sampai siap"; tail -60 qemu.log; exit 1; }
-          echo "QEMU: kernel boot dan init siap"
+          grep -q "VAYU-TES: kernel" qemu.log || { echo "::error::ringkasan VAYU-TES tidak tercatat"; exit 1; }
+          grep -E "VAYU-TES|reboot|Restarting" qemu.log | tail -25
+          grep -q "Restarting system with command 'recovery'" qemu.log || { echo "::error::restart ke recovery tidak terjadi"; tail -40 qemu.log; exit 1; }
+          echo "QEMU: kernel boot, init siap, ringkasan tercatat, restart ke recovery terjadi"
 
       - uses: actions/upload-artifact@v4
         with:

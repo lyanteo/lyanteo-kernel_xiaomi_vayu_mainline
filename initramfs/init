@@ -65,8 +65,44 @@ telnetd -b 172.16.42.1:23 -l /bin/sh 2>/dev/null
 # Keep a copy of the kernel log
 dmesg > /log/dmesg-boot.txt
 
+say() {
+	echo "VAYU-TES: $*" > /dev/kmsg
+	echo "VAYU-TES: $*" > /dev/tty0 2>/dev/null
+}
+
 echo "vayu-initramfs: ready (serial ttyGS0, telnet 172.16.42.1)" > /dev/kmsg
 echo "vayu-initramfs: ready (serial ttyGS0, telnet 172.16.42.1)" > /dev/tty0 2>/dev/null
+
+# Ringkasan kondisi hardware -> masuk log kernel -> tersimpan di ramoops,
+# bisa dibaca dari recovery tanpa foto layar.
+say "kernel $(uname -r) model: $(cat /proc/device-tree/model 2>/dev/null)"
+say "memori: $(grep MemTotal /proc/meminfo)"
+say "cpu online: $(cat /sys/devices/system/cpu/online 2>/dev/null)"
+say "udc: '$UDC'  usb0: $(cat /sys/class/net/usb0/operstate 2>/dev/null)"
+say "drm: $(ls /sys/class/drm 2>/dev/null | tr '\n' ' ')"
+say "fb: $(ls /sys/class/graphics 2>/dev/null | tr '\n' ' ')"
+say "block: $(ls /sys/class/block 2>/dev/null | head -n 16 | tr '\n' ' ')"
+say "input: $(grep -h '^N:' /proc/bus/input/devices 2>/dev/null | tr '\n' ' ')"
+say "baterai: $(cat /sys/class/power_supply/*/capacity 2>/dev/null | tr '\n' ' ')"
+say "thermal0: $(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)"
+say "remoteproc: $(cat /sys/class/remoteproc/*/state 2>/dev/null | tr '\n' ' ')"
+say "probe gagal: $(dmesg | grep -ciE 'probe.*failed|failed to probe|error -')"
+dmesg | grep -iE 'probe.*failed|failed to probe' | head -n 15 | while read -r l; do say "  $l"; done
+
+# Restart otomatis ke recovery setelah 60 detik (kecuali cmdline berisi
+# vayu.tetap), supaya log di atas bisa dibaca di recovery:
+#   cat /sys/fs/pstore/console-ramoops*
+if ! grep -q 'vayu.tetap' /proc/cmdline; then
+	for i in 60 45 30 15; do
+		say "restart ke RECOVERY dalam $i detik (ambil log di sana)"
+		sleep 15
+	done
+	say "restart ke recovery sekarang"
+	sync
+	/bin/reboot-recovery
+	# Jangan reboot biasa: itu memuat kernel tes ini lagi (loop).
+	say "reboot-recovery gagal; tetap menyala. Tahan Power 15 dtk, lalu Vol Atas + Power"
+fi
 
 # Shell on the USB serial port, respawned forever; never exit PID 1
 while true; do

@@ -15,8 +15,17 @@ Unduh dari tab **Actions → Build kernel 6.13 vayu → run hijau terbaru → Ar
 | `boot-6.13-vayu-tianma.img` | Sama, tapi layar memakai driver panel Tianma buatan sendiri (eksperimen). |
 | `sm8150-xiaomi-vayu*.dtb`, `kernel.config`, `SHA256SUMS` | Untuk analisis. |
 
-Kedua image berisi initramfs kecil (busybox): menampilkan log di layar, membuka shell lewat USB
-(serial ACM / telnet `172.16.42.1`), dan **tidak me-mount atau menulis partisi apa pun di HP**.
+Kedua image berisi initramfs kecil (busybox) yang **tidak me-mount atau menulis partisi apa pun di HP**:
+1. menampilkan log di layar dan membuka shell lewat USB (serial ACM / telnet `172.16.42.1`),
+2. mencatat ringkasan hardware (`VAYU-TES: ...`) ke log kernel → tersimpan di ramoops,
+3. setelah 60 detik **restart otomatis ke recovery** (tambahkan `vayu.tetap` di cmdline untuk mematikannya).
+
+**Mengambil log tanpa foto:** di recovery (TWRP/OrangeFox) buka Terminal:
+```
+cat /sys/fs/pstore/console-ramoops* > /external_sd/log-vayu.txt   # atau /tmp/log-vayu.txt
+grep VAYU-TES /sys/fs/pstore/console-ramoops*
+```
+Lakukan **sebelum** boot ke ROM: setiap boot menimpa log ramoops sebelumnya.
 
 ## Pemeriksaan otomatis di setiap build (build gagal kalau salah satu tidak lolos)
 
@@ -29,7 +38,7 @@ Kedua image berisi initramfs kecil (busybox): menampilkan log di layar, membuka 
 | **Overlay `dtbo` gagal → kembali ke fastboot** | Overlay dari `dtbo.img` **asli ROM Infinity-X 3.12** ditempel ke DTB final: 126/126 label terpenuhi, **0 perubahan ke node mainline** | ✅ |
 | Format boot image ditolak | Header v2, page 4096, offset, os 16.0.0 / patch 2026-09 sama dengan boot.img Infinity-X | ✅ |
 | Format kernel | `Image` tidak terkompresi (magic `ARMd`), sama dengan Infinity-X | ✅ |
-| Kernel crash di kode umum / init rusak | Kernel + initramfs yang sama di QEMU arm64: `vayu-initramfs: ready` tanpa panic | ✅ |
+| Kernel crash di kode umum / init rusak | Kernel + initramfs yang sama di QEMU arm64: `vayu-initramfs: ready` tanpa panic, ringkasan `VAYU-TES` tercatat, restart dengan perintah `recovery` terjadi | ✅ |
 
 Diperiksa manual (sekali):
 - Peta reserved-memory DTS vayu = kernel vendor [tejas101k/kernel_xiaomi_vayu](https://github.com/tejas101k/kernel_xiaomi_vayu) (TZ, ADSP, modem, CDSP, GPU, framebuffer, …).
@@ -72,7 +81,8 @@ fastboot boot boot-6.13-vayu.img
 | File | Isi |
 |---|---|
 | `vayu.config` | Opsi tambahan di atas `defconfig` + `sm8150.config` |
-| `initramfs/init` | Init debug (busybox) |
+| `initramfs/init` | Init debug (busybox), ringkasan ke ramoops, restart otomatis ke recovery |
+| `initramfs/reboot-recovery.c` | Program kecil (tanpa libc) untuk `reboot(RESTART2, "recovery")` |
 | `tools/alihkan_symbols.py` | Arahkan 8 label yang juga ada di mainline (`soc`, `tlmm`, `mdss_*`, `pcie0`, `sdhc_2`, `spmi_bus`) ke stub, agar overlay vendor tidak menyentuh node asli |
 | `tools/cek_dtbo.py` | Simulasi bootloader: tempel overlay `dtbo.img` ke DTB, laporkan label hilang dan perubahan di luar stub |
 | `.github/workflows/build.yml` | Build + semua pemeriksaan di atas |
