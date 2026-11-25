@@ -30,7 +30,7 @@ jobs:
       - name: Alat
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang lld llvm flex bison bc libssl-dev libelf-dev cpio python3 file qemu-system-arm device-tree-compiler unzip
+          sudo apt-get install -y -qq clang lld llvm flex bison bc libssl-dev libelf-dev cpio python3 file qemu-system-arm device-tree-compiler unzip dosfstools mtools
           git clone -q --depth 1 https://android.googlesource.com/platform/system/tools/mkbootimg /opt/mkbootimg
           DEB=$(curl -fsSL http://ports.ubuntu.com/pool/universe/b/busybox/ | grep -o 'busybox-static_[^"]*_arm64\.deb' | sort -uV | tail -n1)
           echo "busybox: $DEB"
@@ -57,7 +57,7 @@ jobs:
           make -s O=out defconfig sm8150.config vayu.config
           for o in DRM_PANEL_NOVATEK_NT36672C_J20S TOUCHSCREEN_NT36xxx_HOSTDL_SPI PSTORE_RAM PSTORE_CONSOLE \
                    DRM_MSM BACKLIGHT_QCOM_WLED FB_SIMPLE FRAMEBUFFER_CONSOLE USB_DWC3_QCOM USB_CONFIGFS_ACM \
-                   USB_CONFIGFS_NCM BLK_DEV_INITRD RD_GZIP DEVTMPFS; do
+                   USB_CONFIGFS_NCM BLK_DEV_INITRD RD_GZIP DEVTMPFS MMC_SDHCI_MSM MMC_BLOCK VFAT_FS EXFAT_FS; do
             grep -q "^CONFIG_$o=y" out/.config || { echo "::error::CONFIG_$o tidak =y"; exit 1; }
           done
           echo "Semua opsi wajib aktif"
@@ -121,8 +121,11 @@ jobs:
         run: |
           # Hardware vayu tidak bisa diemulasikan, tapi ini membuktikan kernel
           # tidak crash di kode umum dan init + busybox benar-benar jalan.
-          timeout 180 qemu-system-aarch64 -M virt -cpu max -smp 2 -m 2048 -nographic -no-reboot \
+          # Kartu SD virtual FAT32 untuk menguji penyimpanan log ke microSD
+          truncate -s 64M sd.img && mkfs.vfat -F 32 sd.img
+          timeout 240 qemu-system-aarch64 -M virt -cpu max -smp 2 -m 2048 -nographic -no-reboot \
             -kernel linux/out/arch/arm64/boot/Image -initrd initramfs.cpio.gz \
+            -device sdhci-pci -drive if=none,id=sdcard,file=sd.img,format=raw -device sd-card,drive=sdcard \
             -append "console=ttyAMA0 panic=-1" > qemu.log 2>&1 || true
           grep -E "Linux version|vayu-initramfs|Kernel panic|Unable to mount|not syncing" qemu.log | head -20
           grep -q "Kernel panic" qemu.log && { echo "::error::kernel panic di QEMU"; tail -40 qemu.log; exit 1; }
@@ -130,7 +133,12 @@ jobs:
           grep -q "VAYU-TES: kernel" qemu.log || { echo "::error::ringkasan VAYU-TES tidak tercatat"; exit 1; }
           grep -E "VAYU-TES|reboot|Restarting" qemu.log | tail -25
           grep -q "Restarting system with command 'recovery'" qemu.log || { echo "::error::restart ke recovery tidak terjadi"; tail -40 qemu.log; exit 1; }
-          echo "QEMU: kernel boot, init siap, ringkasan tercatat, restart ke recovery terjadi"
+          echo "--- isi kartu SD virtual ---"
+          mdir -i sd.img ::/vayu-log
+          mtype -i sd.img ::/vayu-log/log-1.txt | head -3
+          mtype -i sd.img ::/vayu-log/log-2.txt | grep -q "restart ke RECOVERY dalam 15 detik" \
+            || { echo "::error::log tidak tersimpan lengkap ke microSD"; exit 1; }
+          echo "QEMU: kernel boot, init siap, ringkasan tercatat, log tersimpan ke SD, restart ke recovery terjadi"
 
       - uses: actions/upload-artifact@v4
         with:

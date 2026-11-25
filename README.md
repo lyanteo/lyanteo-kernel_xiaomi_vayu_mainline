@@ -20,7 +20,12 @@ Kedua image berisi initramfs kecil (busybox) yang **tidak me-mount atau menulis 
 2. mencatat ringkasan hardware (`VAYU-TES: ...`) ke log kernel → tersimpan di ramoops,
 3. setelah 60 detik **restart otomatis ke recovery** (tambahkan `vayu.tetap` di cmdline untuk mematikannya).
 
-**Mengambil log tanpa foto:** di recovery (TWRP/OrangeFox) buka Terminal:
+**Log otomatis ke microSD:** kalau ada microSD (FAT32/exFAT), kernel tes menyimpan log lengkap ke
+`vayu-log/log-N.txt` di microSD (sekali saat init siap, sekali sebelum restart). Setelah kembali ke ROM,
+cukup buka file itu dengan file manager. Kernel tes hanya menyentuh microSD (`mmcblk*`), tidak pernah
+penyimpanan HP (UFS).
+
+**Tanpa microSD:** log tetap tersimpan di ramoops. Di recovery (TWRP/OrangeFox) buka Terminal:
 ```
 cat /sys/fs/pstore/console-ramoops* > /external_sd/log-vayu.txt   # atau /tmp/log-vayu.txt
 grep VAYU-TES /sys/fs/pstore/console-ramoops*
@@ -38,7 +43,7 @@ Lakukan **sebelum** boot ke ROM: setiap boot menimpa log ramoops sebelumnya.
 | **Overlay `dtbo` gagal → kembali ke fastboot** | Overlay dari `dtbo.img` **asli ROM Infinity-X 3.12** dan **crDroid** (entri VAYU, board-id 47/0) ditempel ke DTB final: semua label terpenuhi, **0 perubahan ke node mainline** | ✅ |
 | Format boot image ditolak | Header v2, page 4096, offset, os 16.0.0 / patch 2026-09 sama dengan boot.img Infinity-X | ✅ |
 | Format kernel | `Image` tidak terkompresi (magic `ARMd`), sama dengan Infinity-X | ✅ |
-| Kernel crash di kode umum / init rusak | Kernel + initramfs yang sama di QEMU arm64: `vayu-initramfs: ready` tanpa panic, ringkasan `VAYU-TES` tercatat, restart dengan perintah `recovery` terjadi | ✅ |
+| Kernel crash di kode umum / init rusak | Kernel + initramfs yang sama di QEMU arm64: `vayu-initramfs: ready` tanpa panic, ringkasan `VAYU-TES` tercatat, log tertulis ke kartu SD virtual (FAT32), restart dengan perintah `recovery` terjadi | ✅ |
 
 Diperiksa manual (sekali):
 - Peta reserved-memory DTS vayu = kernel vendor [tejas101k/kernel_xiaomi_vayu](https://github.com/tejas101k/kernel_xiaomi_vayu) (TZ, ADSP, modem, CDSP, GPU, framebuffer, …).
