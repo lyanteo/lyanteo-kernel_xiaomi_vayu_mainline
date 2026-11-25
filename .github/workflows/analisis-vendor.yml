@@ -15,7 +15,7 @@ on:
         required: false
   push:
     branches: [main]
-    paths: ["tools/analisis_vendor.py", "tools/bongkar_rom.sh", ".github/workflows/analisis-vendor.yml"]
+    paths: ["tools/analisis_vendor.py", "tools/bongkar_rom.sh", "tools/cek_sepolicy.sh",".github/workflows/analisis-vendor.yml"]
 
 jobs:
   analisis:
@@ -34,7 +34,7 @@ jobs:
       - name: Alat
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq brotli erofs-utils e2fsprogs android-sdk-libsparse-utils unzip file python3-pip jq
+          sudo apt-get install -y -qq brotli erofs-utils e2fsprogs android-sdk-libsparse-utils unzip file python3-pip jq secilc
           pip install --break-system-packages -q pyelftools
           git clone -q --depth 1 https://github.com/xpirt/sdat2img /opt/sdat2img
           URL=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/ssut/payload-dumper-go/releases/latest \
@@ -73,9 +73,10 @@ jobs:
       - name: Bongkar
         run: |
           chmod +x tools/bongkar_rom.sh
-          tools/bongkar_rom.sh vendor-rom.zip v vendor odm
+          # system LOS24 juga dibongkar: kontrol uji SELinux (vendor dengan sistem aslinya harus lolos)
+          tools/bongkar_rom.sh vendor-rom.zip v vendor odm system system_ext product
           rm -f vendor-rom.zip
-          tools/bongkar_rom.sh system-rom.zip s system system_ext
+          tools/bongkar_rom.sh system-rom.zip s system system_ext product
           rm -f system-rom.zip
           mkdir -p v/odm
           ls v s; df -h /
@@ -90,6 +91,22 @@ jobs:
             echo "- sistem: ${{ inputs.system_url || 'LineageOS 22.2 vayu resmi (Android 15)' }}"
             echo; cat laporan-vendor.md
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Uji kompilasi SELinux seperti init (vendor 202604 diturunkan ke mapping 202404)
+        if: always()
+        run: |
+          chmod +x tools/cek_sepolicy.sh
+          VV=$(cat v/vendor/etc/selinux/plat_sepolicy_vers.txt)
+          MAX=$(ls s/system/etc/selinux/mapping | grep -E '^[0-9.]+\.cil$' | sed 's/\.cil$//' | sort -V | tail -n1)
+          {
+            echo; echo "## 5. Uji kompilasi SELinux (secilc, sama seperti init saat boot)"; echo; echo '```'
+            echo "--- KONTROL: vendor LOS24 + sistem LOS24 aslinya (harus lolos)"
+            tools/cek_sepolicy.sh v v "$VV" || true
+            echo; echo "--- UJI: vendor LOS24 + sistem Android 15"
+            tools/cek_sepolicy.sh s v "$MAX" "$VV" || true
+            echo '```'
+          } | tee -a laporan-vendor.md >> "$GITHUB_STEP_SUMMARY"
+          cat laporan-vendor.md | tail -50
 
       - name: Simpan manifest & daftar file untuk diperiksa
         if: always()

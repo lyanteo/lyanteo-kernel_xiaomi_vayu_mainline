@@ -7,7 +7,7 @@ name: Build kernel 6.13 vayu
 on:
   push:
     branches: [main]
-    paths: ["patches/**", "initramfs/**", "tools/**", "!tools/analisis_vendor.py", "!tools/bongkar_rom.sh", "vayu.config", ".github/workflows/build.yml"]
+    paths: ["patches/**", "initramfs/**", "tools/**", "!tools/analisis_vendor.py", "!tools/bongkar_rom.sh", "!tools/cek_sepolicy.sh","vayu.config", ".github/workflows/build.yml"]
   workflow_dispatch:
 
 permissions:
