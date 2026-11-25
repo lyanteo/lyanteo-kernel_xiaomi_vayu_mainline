@@ -113,6 +113,8 @@ jobs:
             tools/cek_sepolicy.sh v v "$VV" || true
             echo; echo "--- UJI: vendor LOS24 + sistem Android 15"
             tools/cek_sepolicy.sh s v "$MAX" "$VV" || true
+            echo; echo "--- UJI+BUANG: sama, tapi semua aturan memfd_file dan nlmsg (kelas/izin baru A16+) dibuang dulu"
+            BUANG='memfd_file|\(nlmsg[ )]' tools/cek_sepolicy.sh s v "$MAX" "$VV" || true
             echo '```'
           } | tee -a laporan-vendor.md >> "$GITHUB_STEP_SUMMARY"
           # Ringkasan pendek di akhir log (log panjang terpotong)

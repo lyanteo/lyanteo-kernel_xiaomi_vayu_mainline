@@ -15,6 +15,15 @@ odm=""
 if [ -n "$DARI" ]; then
 	sed -i "s/_${DARI//./_}\b/_${VER//./_}/g" "$T"/*.cil
 fi
+# BUANG (regex, opsional): buang dulu semua baris vendor/odm yang cocok,
+# mis. kelas/izin yang belum ada di sistem lama (memfd_file, nlmsg).
+if [ -n "${BUANG:-}" ]; then
+	for f in "$T"/*.cil; do
+		c=$(grep -cE "$BUANG" "$f" || true)
+		[ "$c" -gt 0 ] && echo "  dibuang dari $(basename "$f"): $c baris cocok /$BUANG/"
+		sed -i -E "/$BUANG/s/^/;/" "$f"
+	done
+fi
 args=("$S/system/etc/selinux/plat_sepolicy.cil" "$S/system/etc/selinux/mapping/$VER.cil")
 [ -f "$S/system/etc/selinux/mapping/$VER.compat.cil" ] && args+=("$S/system/etc/selinux/mapping/$VER.compat.cil")
 for p in system_ext product; do
