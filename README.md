@@ -25,7 +25,15 @@ Kedua image berisi initramfs kecil (busybox) yang **tidak me-mount atau menulis 
 cukup buka file itu dengan file manager. Kernel tes hanya menyentuh microSD (`mmcblk*`), tidak pernah
 penyimpanan HP (UFS).
 
-**Tanpa microSD:** log tetap tersimpan di ramoops. Di recovery (TWRP/OrangeFox) buka Terminal:
+**Lewat crDroid (ramoops):** kernel tes menulis dump dmesg ke ramoops saat restart, dengan tata letak
+yang sama persis dengan kernel crDroid (1 MB @ `0xa1600000`, satu record 1 MB, tanpa kompresi).
+Setelah kernel tes → TWRP → restore boot → crDroid, jalankan:
+```
+su -c "ls -la /sys/fs/pstore; cat /sys/fs/pstore/dmesg-ramoops-0 > /sdcard/Download/log-vayu.txt"
+```
+(TWRP PerfIgnite tidak bisa membaca ramoops: probe-nya gagal.)
+
+**Recovery lain:** di Terminal recovery:
 ```
 cat /sys/fs/pstore/console-ramoops* > /external_sd/log-vayu.txt   # atau /tmp/log-vayu.txt
 grep VAYU-TES /sys/fs/pstore/console-ramoops*
@@ -82,6 +90,7 @@ fastboot boot boot-6.13-vayu.img
 | `0005` | Perbaikan driver touchscreen agar bisa dikompilasi di 6.13 |
 | `0006` | `qcom,msm-id` + `qcom,board-id` dari kernel vendor |
 | `0007` | Node stub untuk label yang dirujuk overlay `dtbo` Infinity-X dan crDroid |
+| `0008` | Ramoops disamakan dengan kernel crDroid (1 MB, satu record dmesg, dump saat restart) |
 
 | File | Isi |
 |---|---|

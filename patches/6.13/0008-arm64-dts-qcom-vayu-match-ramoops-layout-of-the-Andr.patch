@@ -1,0 +1,49 @@
+From f7b250d5967c7727e29b23bbd0036572485cca70 Mon Sep 17 00:00:00 2001
+From: lyanteo <lyanteo@users.noreply.github.com>
+Date: Wed, 25 Nov 2026 06:27:44 +0000
+Subject: [PATCH] arm64: dts: qcom: vayu: match ramoops layout of the Android
+ kernel
+
+The crDroid vayu kernel registers ramoops as 1 MiB at 0xa1600000 with a
+single 1 MiB dmesg record, no console/pmsg zone and max_reason=4. Use
+the exact same layout and dump on restart (max-reason = KMSG_DUMP_SHUTDOWN)
+so the log of a mainline test boot shows up as dmesg-ramoops-0 in
+/sys/fs/pstore after rebooting into Android.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0192C5wPw4AwnF1EyMXZJ5bh
+---
+ arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dts | 15 +++++++++++----
+ 1 file changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dts b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dts
+index aadffb24cd85..4b8956441d21 100644
+--- a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dts
++++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dts
+@@ -78,12 +78,19 @@ framebuffer: framebuffer@9c000000 {
+ 	reserved-memory {
+ 		/* Sama dengan kernel vendor (tejas101k/kernel_xiaomi_vayu sm8150.dtsi)
+ 		 * supaya log bisa dibaca dari ROM Android setelah restart. */
++		/*
++		 * Same layout as the crDroid/LineageOS vayu kernel
++		 * (ramoops.mem_size=0x100000 record_size=0x100000, no console/pmsg,
++		 * max_reason=4), so a dmesg dump written on panic or restart can be
++		 * read from /sys/fs/pstore after booting back into Android.
++		 */
+ 		ramoops@a1600000 {
+ 			compatible = "ramoops";
+-			reg = <0x0 0xa1600000 0x0 0x800000>;
+-			record-size = <0x80000>;
+-			console-size = <0x400000>;
+-			pmsg-size = <0x400000>;
++			reg = <0x0 0xa1600000 0x0 0x100000>;
++			record-size = <0x100000>;
++			console-size = <0x0>;
++			pmsg-size = <0x0>;
++			max-reason = <4>; /* KMSG_DUMP_SHUTDOWN: also dump on restart */
+ 		};
+ 
+ 		tz_mem: memory@86200000 {
+-- 
+2.43.0
+

@@ -75,6 +75,7 @@ jobs:
                    USB_CONFIGFS_NCM BLK_DEV_INITRD RD_GZIP DEVTMPFS MMC_SDHCI_MSM MMC_BLOCK VFAT_FS EXFAT_FS; do
             grep -q "^CONFIG_$o=y" out/.config || { echo "::error::CONFIG_$o tidak =y"; exit 1; }
           done
+          if grep -q "^CONFIG_PSTORE_COMPRESS=y" out/.config; then echo "::error::PSTORE_COMPRESS harus mati"; exit 1; fi
           echo "Semua opsi wajib aktif"
 
       - name: Build
