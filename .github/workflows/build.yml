@@ -72,14 +72,25 @@ jobs:
           # __symbols__ wajib ada agar bootloader bisa menempelkan overlay dtbo
           out/scripts/dtc/dtc -I dtb -O dts out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb 2>/dev/null | grep -q "__symbols__"
 
+      - name: Cache dtbo Infinity-X (hindari unduh ROM 2 GB tiap build)
+        uses: actions/cache@v4
+        with:
+          path: dtbo-cache
+          key: dtbo-infinityx-3.12-vayu-20.09.2026
+
       - name: Simulasi bootloader - overlay dtbo Infinity-X + crDroid (wajib lolos)
+        timeout-minutes: 20
         run: |
           set -o pipefail
           python3 tools/alihkan_symbols.py linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb \
             linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-tianma.dtb
-          curl -fL --retry 3 -o rom.zip "$ROM_URL"
-          unzip -o rom.zip dtbo.img && rm rom.zip
-          mv dtbo.img infinityx-dtbo.img
+          if [ ! -s dtbo-cache/infinityx-dtbo.img ]; then
+            mkdir -p dtbo-cache
+            curl -fL --retry 3 --connect-timeout 30 --max-time 900 -o rom.zip "$ROM_URL"
+            unzip -o rom.zip dtbo.img && rm rom.zip
+            mv dtbo.img dtbo-cache/infinityx-dtbo.img
+          fi
+          cp dtbo-cache/infinityx-dtbo.img infinityx-dtbo.img
           for rom in infinityx-dtbo.img tools/dtbo/crdroid-vayu-dtbo.img; do
             for v in vayu vayu-tianma; do
               echo "======== $rom  /  $v"
