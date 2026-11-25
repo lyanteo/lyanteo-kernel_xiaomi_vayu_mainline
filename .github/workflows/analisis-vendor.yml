@@ -1,0 +1,109 @@
+name: Analisis vendor LOS24 vayu 5.4 vs sistem Android 15
+
+# Pertanyaan: bisakah vendor LineageOS 24 vayu kernel 5.4 (DUCKS) dipakai
+# dengan sistem Android 15? Dicek dari file ROM sungguhan:
+# target-level VINTF, mapping SELinux, library NEEDED, LLNDK, dan simbol.
+
+on:
+  workflow_dispatch:
+    inputs:
+      vendor_url:
+        description: "URL zip ROM sumber vendor (kosong = LOS24 vayu 5.4 DUCKS terbaru)"
+        required: false
+      system_url:
+        description: "URL zip ROM sistem acuan (kosong = LineageOS 22.2 vayu resmi, Android 15)"
+        required: false
+  push:
+    branches: [main]
+    paths: ["tools/analisis_vendor.py", "tools/bongkar_rom.sh", ".github/workflows/analisis-vendor.yml"]
+
+jobs:
+  analisis:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Kosongkan disk runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - name: Alat
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq brotli erofs-utils e2fsprogs android-sdk-libsparse-utils unzip file python3-pip jq
+          pip install --break-system-packages -q pyelftools
+          git clone -q --depth 1 https://github.com/xpirt/sdat2img /opt/sdat2img
+          URL=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/ssut/payload-dumper-go/releases/latest \
+                | jq -r '.assets[] | select(.name|test("linux_amd64.tar.gz$")) | .browser_download_url')
+          curl -fsSL "$URL" | sudo tar -xz -C /usr/local/bin payload-dumper-go
+          payload-dumper-go -h 2>&1 | head -2 || true
+          fsck.erofs --help 2>&1 | grep -q extract || { echo "::error::fsck.erofs tanpa --extract"; exit 1; }
+
+      - name: Unduh ROM sumber vendor (LOS24 vayu 5.4)
+        run: |
+          URL="${{ inputs.vendor_url }}"
+          if [ -z "$URL" ]; then
+            api() { curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "$@"; }
+            api "https://api.github.com/repos/duckyduckG/rom_releases/releases?per_page=50" > rel.json
+            jq -r '.[] | "\(.tag_name)  \(.published_at)  \([.assets[].name]|join(" "))"' rel.json | grep -i vayu | head -10
+            URL=$(jq -r '[.[] | select(.tag_name|test("vayu";"i"))][0].assets[] | select(.name|test("\\.zip$")) | select(.name|test("lineage";"i")) | .browser_download_url' rel.json | head -n1)
+          fi
+          echo "vendor ROM: $URL"
+          test -n "$URL"
+          curl -fL --retry 3 -o vendor-rom.zip "$URL"
+          ls -l vendor-rom.zip; unzip -Z1 vendor-rom.zip | head -40
+
+      - name: Unduh ROM sistem acuan (Android 15)
+        run: |
+          URL="${{ inputs.system_url }}"
+          if [ -z "$URL" ]; then
+            curl -fsSL https://download.lineageos.org/api/v2/devices/vayu/builds > los.json
+            jq -r '.[] | "\(.version)  \(.date)  \(.files[0].filename)"' los.json | head -10
+            URL=$(jq -r '[.[] | select(.version|startswith("22"))][0].files[] | select(.filename|endswith(".zip")) | .url' los.json | head -n1)
+            [ -n "$URL" ] && [ "$URL" != null ] || { echo "::error::LineageOS 22.x vayu tidak tersedia lagi di server resmi; isi input system_url"; exit 1; }
+          fi
+          echo "sistem ROM: $URL"
+          curl -fL --retry 3 -o system-rom.zip "$URL"
+          ls -l system-rom.zip; unzip -Z1 system-rom.zip | head -40
+
+      - name: Bongkar
+        run: |
+          chmod +x tools/bongkar_rom.sh
+          tools/bongkar_rom.sh vendor-rom.zip v vendor odm
+          rm -f vendor-rom.zip
+          tools/bongkar_rom.sh system-rom.zip s system system_ext
+          rm -f system-rom.zip
+          mkdir -p v/odm
+          ls v s; df -h /
+
+      - name: Analisis target-level, SELinux, library, simbol
+        run: |
+          python3 tools/analisis_vendor.py v/vendor v/odm s/system laporan-vendor.md \
+            s/system_ext/lib s/system_ext/lib64 s/system/apex s/apex
+          {
+            echo "### Sumber"; echo
+            echo "- vendor: ${{ inputs.vendor_url || 'LOS24 vayu 5.4 DUCKS terbaru' }}"
+            echo "- sistem: ${{ inputs.system_url || 'LineageOS 22.2 vayu resmi (Android 15)' }}"
+            echo; cat laporan-vendor.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Simpan manifest & daftar file untuk diperiksa
+        if: always()
+        run: |
+          mkdir -p hasil
+          cp laporan-vendor.md hasil/ 2>/dev/null || true
+          cp -r v/vendor/etc/vintf hasil/vendor-vintf 2>/dev/null || true
+          cp -r v/odm/etc/vintf hasil/odm-vintf 2>/dev/null || true
+          cp v/vendor/build.prop v/vendor/etc/selinux/plat_sepolicy_vers.txt hasil/ 2>/dev/null || true
+          ls s/system/etc/vintf s/system/etc/selinux/mapping > hasil/sistem-vintf-selinux.txt 2>/dev/null || true
+          (cd v && find vendor odm -type f | sort) > hasil/daftar-file-vendor.txt 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: analisis-vendor
+          path: hasil/
