@@ -1,4 +1,4 @@
-From 2d7f5d09fc22ae318eefc0cf138d05a81fc57c2e Mon Sep 17 00:00:00 2001
+From c6ca002d3d1ec53053808bf16b2aae522696ae10 Mon Sep 17 00:00:00 2001
 From: lyanteo <lyanteo@users.noreply.github.com>
 Date: Tue, 24 Nov 2026 18:19:31 +0000
 Subject: [PATCH] arm64: dts: qcom: vayu: add stubs for the stock dtbo overlay
@@ -15,17 +15,17 @@ The DTB must be built with symbols (DTC_FLAGS=-@).
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_0192C5wPw4AwnF1EyMXZJ5bh
 ---
- .../qcom/sm8150-xiaomi-vayu-dtbo-compat.dtsi  | 155 ++++++++++++++++++
+ .../qcom/sm8150-xiaomi-vayu-dtbo-compat.dtsi  | 158 ++++++++++++++++++
  .../boot/dts/qcom/sm8150-xiaomi-vayu.dts      |   1 +
- 2 files changed, 156 insertions(+)
+ 2 files changed, 159 insertions(+)
  create mode 100644 arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-dtbo-compat.dtsi
 
 diff --git a/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-dtbo-compat.dtsi b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-dtbo-compat.dtsi
 new file mode 100644
-index 000000000000..34ff2ad87ef8
+index 000000000000..441d3034137c
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-dtbo-compat.dtsi
-@@ -0,0 +1,155 @@
+@@ -0,0 +1,158 @@
 +// SPDX-License-Identifier: BSD-3-Clause
 +/*
 + * Compatibility stubs for the vendor dtbo overlay of Xiaomi POCO X3 Pro.
@@ -33,9 +33,10 @@ index 000000000000..34ff2ad87ef8
 + * The Qualcomm bootloader (ABL) applies the overlay from the dtbo partition
 + * (board-id 47, model "VAYU") on top of the kernel DTB and aborts the boot
 + * (back to fastboot) if any label referenced by the overlay is missing.
-+ * The stock overlay references 118 labels that only exist in the vendor
-+ * 4.14 device tree. Provide empty nodes for them inside a disabled
-+ * container without "compatible", so the overlay applies but nothing in it
++ * The Infinity-X 3.12 overlay references 118 labels (crDroid: one more,
++ * qupv3_se17_i2c) that only exist in the vendor 4.14 device tree.
++ * Provide empty nodes for them inside a disabled container without
++ * "compatible", so the overlay applies but nothing in it
 + * is ever probed or used by the mainline kernel.
 + *
 + * Requires the DTB to be built with symbols (DTC_FLAGS=-@).
@@ -119,6 +120,8 @@ index 000000000000..34ff2ad87ef8
 +		qupv3_se12_2uart: qupv3-se12-2uart-stub { };
 +		qupv3_se13_4uart: qupv3-se13-4uart-stub { };
 +		qupv3_se17_spi: qupv3-se17-spi-stub { };
++		/* referenced by the crDroid vayu dtbo entry */
++		qupv3_se17_i2c: qupv3-se17-i2c-stub { };
 +		qupv3_se1_spi: qupv3-se1-spi-stub { };
 +		qupv3_se3_spi: qupv3-se3-spi-stub { };
 +		qupv3_se4_i2c: qupv3-se4-i2c-stub { };

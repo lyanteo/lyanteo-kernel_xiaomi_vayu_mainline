@@ -72,14 +72,20 @@ jobs:
           # __symbols__ wajib ada agar bootloader bisa menempelkan overlay dtbo
           out/scripts/dtc/dtc -I dtb -O dts out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb 2>/dev/null | grep -q "__symbols__"
 
-      - name: Simulasi bootloader - overlay dtbo Infinity-X (wajib lolos)
+      - name: Simulasi bootloader - overlay dtbo Infinity-X + crDroid (wajib lolos)
         run: |
+          set -o pipefail
           python3 tools/alihkan_symbols.py linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb \
             linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-tianma.dtb
           curl -fL --retry 3 -o rom.zip "$ROM_URL"
           unzip -o rom.zip dtbo.img && rm rom.zip
-          for v in vayu vayu-tianma; do
-            python3 tools/cek_dtbo.py dtbo.img linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-$v.dtb cek-$v --ketat
+          mv dtbo.img infinityx-dtbo.img
+          for rom in infinityx-dtbo.img tools/dtbo/crdroid-vayu-dtbo.img; do
+            for v in vayu vayu-tianma; do
+              echo "======== $rom  /  $v"
+              python3 tools/cek_dtbo.py "$rom" linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-$v.dtb \
+                "cek-$(basename $rom .img)-$v" --ketat | grep -v "label yang ADA"
+            done
           done
 
       - name: Initramfs + boot image

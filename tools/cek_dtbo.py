@@ -102,7 +102,8 @@ def main():
         board = fdtget(path, "/", "qcom,board-id")
         msm = fdtget(path, "/", "qcom,msm-id")
         model = fdtget(path, "/", "model", "s")
-        match = board is not None and base_board is not None and board.split()[:1] == base_board.split()[:1]
+        # ABL mencocokkan board-id lengkap (platform + subtipe), mis. "47 0"
+        match = board is not None and base_board is not None and board.split() == base_board.split()
         any_match |= match
         print(f"\n== entri {i}: id={eid:#x} board-id={board} msm-id={msm} model={model!r}"
               f"{'  <-- COCOK dengan board-id DTB kita' if match else ''}")

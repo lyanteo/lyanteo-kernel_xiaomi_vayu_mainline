@@ -63,6 +63,15 @@ jobs:
         if: always()
         run: python3 tools/cek_dtbo.py dtbo.img linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-tianma.dtb hasil-tianma --ketat
 
+      - name: Simulasi ABL - dtbo crDroid
+        if: always()
+        run: |
+          set -o pipefail
+          for v in vayu vayu-tianma; do
+            python3 tools/cek_dtbo.py tools/dtbo/crdroid-vayu-dtbo.img \
+              linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-$v.dtb hasil-crdroid-$v --ketat | grep -v "label yang ADA"
+          done
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:

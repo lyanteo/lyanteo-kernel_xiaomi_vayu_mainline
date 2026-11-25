@@ -35,7 +35,7 @@ Lakukan **sebelum** boot ke ROM: setiap boot menimpa log ramoops sebelumnya.
 | Driver tidak bisa dikompilasi | Build lengkap `Image` + 2 DTB (clang 18) | ✅ |
 | Opsi kernel penting mati | Cek 14 opsi wajib di `.config` (USB gadget, pstore, initrd, framebuffer, panel, …) | ✅ |
 | Bootloader tidak memilih DTB | `qcom,msm-id <339 0x20000>`, `qcom,board-id <47 0>` sama dengan kernel vendor | ✅ |
-| **Overlay `dtbo` gagal → kembali ke fastboot** | Overlay dari `dtbo.img` **asli ROM Infinity-X 3.12** ditempel ke DTB final: 126/126 label terpenuhi, **0 perubahan ke node mainline** | ✅ |
+| **Overlay `dtbo` gagal → kembali ke fastboot** | Overlay dari `dtbo.img` **asli ROM Infinity-X 3.12** dan **crDroid** (entri VAYU, board-id 47/0) ditempel ke DTB final: semua label terpenuhi, **0 perubahan ke node mainline** | ✅ |
 | Format boot image ditolak | Header v2, page 4096, offset, os 16.0.0 / patch 2026-09 sama dengan boot.img Infinity-X | ✅ |
 | Format kernel | `Image` tidak terkompresi (magic `ARMd`), sama dengan Infinity-X | ✅ |
 | Kernel crash di kode umum / init rusak | Kernel + initramfs yang sama di QEMU arm64: `vayu-initramfs: ready` tanpa panic, ringkasan `VAYU-TES` tercatat, restart dengan perintah `recovery` terjadi | ✅ |
@@ -76,7 +76,7 @@ fastboot boot boot-6.13-vayu.img
 | `0004` | Ramoops di alamat yang sama dengan kernel vendor |
 | `0005` | Perbaikan driver touchscreen agar bisa dikompilasi di 6.13 |
 | `0006` | `qcom,msm-id` + `qcom,board-id` dari kernel vendor |
-| `0007` | Node stub untuk 126 label yang dirujuk overlay `dtbo` vendor |
+| `0007` | Node stub untuk label yang dirujuk overlay `dtbo` Infinity-X dan crDroid |
 
 | File | Isi |
 |---|---|
@@ -84,6 +84,7 @@ fastboot boot boot-6.13-vayu.img
 | `initramfs/init` | Init debug (busybox), ringkasan ke ramoops, restart otomatis ke recovery |
 | `initramfs/reboot-recovery.c` | Program kecil (tanpa libc) untuk `reboot(RESTART2, "recovery")` |
 | `tools/alihkan_symbols.py` | Arahkan 8 label yang juga ada di mainline (`soc`, `tlmm`, `mdss_*`, `pcie0`, `sdhc_2`, `spmi_bus`) ke stub, agar overlay vendor tidak menyentuh node asli |
+| `tools/dtbo/crdroid-vayu-dtbo.img` | `dtbo` crDroid (tanpa footer AVB) sebagai bahan uji |
 | `tools/cek_dtbo.py` | Simulasi bootloader: tempel overlay `dtbo.img` ke DTB, laporkan label hilang dan perubahan di luar stub |
 | `.github/workflows/build.yml` | Build + semua pemeriksaan di atas |
 | `.github/workflows/cek-dtbo.yml` | Simulasi overlay saja (cepat) |
