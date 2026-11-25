@@ -115,7 +115,20 @@ jobs:
             tools/cek_sepolicy.sh s v "$MAX" "$VV" || true
             echo '```'
           } | tee -a laporan-vendor.md >> "$GITHUB_STEP_SUMMARY"
-          cat laporan-vendor.md | tail -50
+          # Ringkasan pendek di akhir log (log panjang terpotong)
+          echo "===== RINGKASAN SELINUX ====="
+          awk '/## 5\./,0' laporan-vendor.md | grep -E "^--- |HASIL" || true
+          python3 - <<'EOF'
+          import re, collections
+          t = open("laporan-vendor.md").read().split("## 5.", 1)[1]
+          for sec in t.split("--- ")[1:]:
+              print("---", sec.splitlines()[0])
+              rules = [l for l in sec.splitlines() if re.match(r"^[a-z_]+\.cil:\d+ ", l)]
+              kelas = collections.Counter((re.findall(r"\(([a-z_0-9]+) \([^()]*\)\)\)?\s*$", l) or ["(lain)"])[-1] for l in rules)
+              print("   aturan dinonaktifkan:", len(rules), dict(kelas))
+              for l in [l for l in rules if "memfd_file" not in l][:40]:
+                  print("   BUKAN memfd_file:", l[:220])
+          EOF
 
       - name: Simpan manifest & daftar file untuk diperiksa
         if: always()
