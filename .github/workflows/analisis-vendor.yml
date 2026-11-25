@@ -34,7 +34,12 @@ jobs:
       - name: Alat
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq brotli erofs-utils e2fsprogs android-sdk-libsparse-utils unzip file python3-pip jq secilc
+          sudo apt-get install -y -qq brotli erofs-utils e2fsprogs android-sdk-libsparse-utils unzip file python3-pip jq flex bison
+          # secilc Ubuntu (3.5) belum mengenal aturan "nlmsg" Android baru -> pakai 3.9 dari source
+          git clone -q --depth 1 -b 3.9 https://github.com/SELinuxProject/selinux /tmp/se
+          make -s -C /tmp/se/libsepol -j"$(nproc)" >/dev/null
+          make -s -C /tmp/se/secilc secilc CFLAGS="-O2 -I../libsepol/include" LDLIBS="../libsepol/src/libsepol.a"
+          sudo install -m755 /tmp/se/secilc/secilc /usr/local/bin/secilc
           pip install --break-system-packages -q pyelftools
           git clone -q --depth 1 https://github.com/xpirt/sdat2img /opt/sdat2img
           URL=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/ssut/payload-dumper-go/releases/latest \
