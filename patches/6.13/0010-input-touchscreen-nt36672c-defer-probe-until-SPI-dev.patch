@@ -1,0 +1,57 @@
+From 375c9bd9f3d2f2fae0fb7b74ce833fb4b417d3d2 Mon Sep 17 00:00:00 2001
+From: lyanteo <lyanteo@users.noreply.github.com>
+Date: Wed, 25 Nov 2026 07:01:35 +0000
+Subject: [PATCH] input: touchscreen: nt36672c: defer probe until SPI device
+ exists
+
+On vayu the platform touch driver probed before the GENI SPI controller
+had created the xiaomi,spi-for-tp device and failed with -EINVAL
+("ts_xsfer does not exist"). Return -EPROBE_DEFER instead so the driver
+core retries once the SPI device is registered. Also give spi-xiaomi-tp
+an spi_device_id table (silences "has no spi_device_id").
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0192C5wPw4AwnF1EyMXZJ5bh
+---
+ drivers/input/touchscreen/nt36672c/nt36xxx.c | 4 +++-
+ drivers/input/touchscreen/spi-xiaomi-tp.c    | 7 +++++++
+ 2 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/input/touchscreen/nt36672c/nt36xxx.c b/drivers/input/touchscreen/nt36672c/nt36xxx.c
+index 3abb0714c765..a81a119d687a 100644
+--- a/drivers/input/touchscreen/nt36672c/nt36xxx.c
++++ b/drivers/input/touchscreen/nt36672c/nt36xxx.c
+@@ -2309,7 +2309,9 @@ static int32_t nvt_ts_probe(struct platform_device *pdev)
+ 				NVT_ERR("ts_xsfer has been used, exit nvt probe\n");
+ 				goto err_get_spi;
+ 			} else if (ret == -EINVAL) {
+-				NVT_ERR("ts_xsfer not exist, exit nvt probe\n");
++				/* SPI controller/device not probed yet: try again later */
++				NVT_LOG("ts_xsfer not ready yet, deferring nvt probe\n");
++				ret = -EPROBE_DEFER;
+ 				goto err_get_spi;
+ 			}
+ 		} else {
+diff --git a/drivers/input/touchscreen/spi-xiaomi-tp.c b/drivers/input/touchscreen/spi-xiaomi-tp.c
+index 051bdaa60ee6..86a7e1d2e84f 100644
+--- a/drivers/input/touchscreen/spi-xiaomi-tp.c
++++ b/drivers/input/touchscreen/spi-xiaomi-tp.c
+@@ -160,8 +160,15 @@ static struct of_device_id ts_match_tbl[] = {
+ 	{},
+ };
+ 
++static const struct spi_device_id ts_spi_ids[] = {
++	{ "spi-for-tp", 0 },
++	{ }
++};
++MODULE_DEVICE_TABLE(spi, ts_spi_ids);
++
+ static struct spi_driver touch_spi_drv = {
+ 	.probe = ts_spi_probe,
++	.id_table = ts_spi_ids,
+ 	.remove = ts_spi_remove,
+ 	.driver = {
+ 		.name = "touch_xsfer",
+-- 
+2.43.0
+

@@ -72,7 +72,7 @@ jobs:
           make -s O=out CC="ccache clang" defconfig sm8150.config vayu.config
           for o in DRM_PANEL_NOVATEK_NT36672C_J20S TOUCHSCREEN_NT36xxx_HOSTDL_SPI PSTORE_RAM PSTORE_CONSOLE \
                    DRM_MSM BACKLIGHT_QCOM_WLED FB_SIMPLE FRAMEBUFFER_CONSOLE USB_DWC3_QCOM USB_CONFIGFS_ACM \
-                   USB_CONFIGFS_NCM BLK_DEV_INITRD RD_GZIP DEVTMPFS MMC_SDHCI_MSM MMC_BLOCK VFAT_FS EXFAT_FS FONT_TER16x32; do
+                   USB_CONFIGFS_NCM BLK_DEV_INITRD RD_GZIP DEVTMPFS MMC_SDHCI_MSM MMC_BLOCK VFAT_FS EXFAT_FS FONT_TER16x32 SPI_QCOM_GENI; do
             grep -q "^CONFIG_$o=y" out/.config || { echo "::error::CONFIG_$o tidak =y"; exit 1; }
           done
           if grep -q "^CONFIG_PSTORE_COMPRESS=y" out/.config; then echo "::error::PSTORE_COMPRESS harus mati"; exit 1; fi

@@ -65,6 +65,23 @@ Diperiksa manual (sekali):
 - Peta reserved-memory DTS vayu = kernel vendor [tejas101k/kernel_xiaomi_vayu](https://github.com/tejas101k/kernel_xiaomi_vayu) (TZ, ADSP, modem, CDSP, GPU, framebuffer, …).
 - Ramoops di `0xa1600000` sama dengan kernel vendor → kalau kernel ini crash lalu HP restart, log-nya bisa dibaca dari Infinity-X: `su -c "cat /sys/fs/pstore/console-ramoops*"`.
 
+## Hasil tes di HP (build #17, crDroid + dtbo KSU)
+
+Dari `vayu-log/log-1.txt` dan `log-2.txt` di microSD:
+
+| Bagian | Hasil |
+|---|---|
+| Bootloader + overlay dtbo KSU | ✅ diterima |
+| Kernel 6.13, 8 CPU, RAM 7,4 GB | ✅ |
+| Layar (framebuffer bootloader) | ✅ |
+| Penyimpanan UFS Samsung 256 GB (sda–sdf) | ✅ terbaca |
+| microSD 14,6 GB (exFAT) | ✅ log tersimpan |
+| USB device controller (a600000.usb) | ✅ |
+| Ramoops (1 MB @0xa1600000), PSCI v1.1 | ✅ terdaftar |
+| Restart ke recovery | ✅ |
+| Touchscreen | ❌ driver SPI masih modul → diperbaiki (`SPI_QCOM_GENI=y`, patch 0010) |
+| Baterai, remoteproc (modem/DSP), GPU/DRM | ⏳ belum (modul/driver belum dimuat) |
+
 ## Yang masih belum bisa dipastikan tanpa HP
 
 - **Perilaku hardware vayu sungguhan** (urutan clock/regulator, UFS, USB): QEMU tidak bisa meniru chip Snapdragon 860.
@@ -100,6 +117,7 @@ fastboot boot boot-6.13-vayu.img
 | `0007` | Node stub untuk label yang dirujuk overlay `dtbo` Infinity-X dan crDroid |
 | `0008` | Ramoops disamakan dengan kernel crDroid (1 MB, satu record dmesg, dump saat restart) |
 | `0009` | Stub `tdm_sen_rx/tx` untuk `dtbo` dari zip kernel KernelSU |
+| `0010` | Touchscreen menunggu (`-EPROBE_DEFER`) sampai perangkat SPI siap |
 
 | File | Isi |
 |---|---|
