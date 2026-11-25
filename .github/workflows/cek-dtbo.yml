@@ -6,9 +6,6 @@ name: Cek overlay dtbo vendor vs DTB mainline
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ["patches/**", "tools/**", ".github/workflows/cek-dtbo.yml"]
 
 env:
   ARCH: arm64

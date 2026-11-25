@@ -18,7 +18,6 @@ env:
   LLVM: "1"
   KERNEL_REPO: https://gitlab.com/sm8150-mainline/linux.git
   KERNEL_TAG: v6.13.0-sm8150
-  ROM_URL: https://downloads.sourceforge.net/project/infinity-x/vayu/16/gapps/Project_Infinity-X-3.12-vayu-20.09.2026-GAPPS-OFFICIAL.zip
 
 jobs:
   build:
@@ -72,31 +71,16 @@ jobs:
           # __symbols__ wajib ada agar bootloader bisa menempelkan overlay dtbo
           out/scripts/dtc/dtc -I dtb -O dts out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb 2>/dev/null | grep -q "__symbols__"
 
-      - name: Cache dtbo Infinity-X (hindari unduh ROM 2 GB tiap build)
-        uses: actions/cache@v4
-        with:
-          path: dtbo-cache
-          key: dtbo-infinityx-3.12-vayu-20.09.2026
-
-      - name: Simulasi bootloader - overlay dtbo Infinity-X + crDroid (wajib lolos)
-        timeout-minutes: 20
+      - name: Simulasi bootloader - overlay dtbo crDroid (wajib lolos)
         run: |
           set -o pipefail
           python3 tools/alihkan_symbols.py linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb \
             linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-tianma.dtb
-          if [ ! -s dtbo-cache/infinityx-dtbo.img ]; then
-            mkdir -p dtbo-cache
-            curl -fL --retry 3 --connect-timeout 30 --max-time 900 -o rom.zip "$ROM_URL"
-            unzip -o rom.zip dtbo.img && rm rom.zip
-            mv dtbo.img dtbo-cache/infinityx-dtbo.img
-          fi
-          cp dtbo-cache/infinityx-dtbo.img infinityx-dtbo.img
-          for rom in infinityx-dtbo.img tools/dtbo/crdroid-vayu-dtbo.img; do
-            for v in vayu vayu-tianma; do
-              echo "======== $rom  /  $v"
-              python3 tools/cek_dtbo.py "$rom" linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-$v.dtb \
-                "cek-$(basename $rom .img)-$v" --ketat | grep -v "label yang ADA"
-            done
+          # Infinity-X dilewati (perlu unduh ROM 2 GB); uji manual lewat workflow cek-dtbo.
+          for v in vayu vayu-tianma; do
+            echo "======== crDroid  /  $v"
+            python3 tools/cek_dtbo.py tools/dtbo/crdroid-vayu-dtbo.img \
+              linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-$v.dtb "cek-crdroid-$v" --ketat | grep -v "label yang ADA"
           done
 
       - name: Initramfs + boot image

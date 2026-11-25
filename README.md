@@ -40,7 +40,7 @@ Lakukan **sebelum** boot ke ROM: setiap boot menimpa log ramoops sebelumnya.
 | Driver tidak bisa dikompilasi | Build lengkap `Image` + 2 DTB (clang 18) | ✅ |
 | Opsi kernel penting mati | Cek 14 opsi wajib di `.config` (USB gadget, pstore, initrd, framebuffer, panel, …) | ✅ |
 | Bootloader tidak memilih DTB | `qcom,msm-id <339 0x20000>`, `qcom,board-id <47 0>` sama dengan kernel vendor | ✅ |
-| **Overlay `dtbo` gagal → kembali ke fastboot** | Overlay dari `dtbo.img` **asli ROM Infinity-X 3.12** dan **crDroid** (entri VAYU, board-id 47/0) ditempel ke DTB final: semua label terpenuhi, **0 perubahan ke node mainline** | ✅ |
+| **Overlay `dtbo` gagal → kembali ke fastboot** | Overlay dari `dtbo.img` **crDroid** (entri VAYU, board-id 47/0) ditempel ke DTB final (Infinity-X 3.12: uji manual lewat workflow `cek-dtbo`): semua label terpenuhi, **0 perubahan ke node mainline** | ✅ |
 | Format boot image ditolak | Header v2, page 4096, offset, os 16.0.0 / patch 2026-09 sama dengan boot.img Infinity-X | ✅ |
 | Format kernel | `Image` tidak terkompresi (magic `ARMd`), sama dengan Infinity-X | ✅ |
 | Kernel crash di kode umum / init rusak | Kernel + initramfs yang sama di QEMU arm64: `vayu-initramfs: ready` tanpa panic, ringkasan `VAYU-TES` tercatat, log tertulis ke kartu SD virtual (FAT32), restart dengan perintah `recovery` terjadi | ✅ |
