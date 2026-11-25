@@ -38,9 +38,10 @@ jobs:
           # secilc Ubuntu (3.5) belum mengenal aturan "nlmsg" Android baru -> pakai 3.9 dari source
           git clone -q --depth 1 -b 3.9 https://github.com/SELinuxProject/selinux /tmp/se
           make -s -C /tmp/se/libsepol -j"$(nproc)" DESTDIR=/tmp/sepinst install >/dev/null
-          make -s -C /tmp/se/secilc secilc CFLAGS="-O2 -I/tmp/sepinst/usr/include" LDLIBS="/tmp/sepinst/usr/lib/libsepol.a"
+          # link statis ke libsepol 3.9 (bukan libsepol lama milik sistem)
+          gcc -O2 -I/tmp/sepinst/usr/include /tmp/se/secilc/secilc.c -o /tmp/secilc /tmp/sepinst/usr/lib/libsepol.a
+          sudo install -m755 /tmp/secilc /usr/local/bin/secilc
           secilc --help 2>&1 | head -1
-          sudo install -m755 /tmp/se/secilc/secilc /usr/local/bin/secilc
           pip install --break-system-packages -q pyelftools
           git clone -q --depth 1 https://github.com/xpirt/sdat2img /opt/sdat2img
           URL=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/ssut/payload-dumper-go/releases/latest \
