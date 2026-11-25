@@ -93,14 +93,16 @@ dmesg | grep -iE 'probe.*failed|failed to probe' | head -n 15 | while read -r l;
 # sda* (penyimpanan UFS HP). Hanya FAT32/exFAT, dan selalu di-unmount.
 simpan_ke_sd() {
 	i=0
-	while [ -z "$(ls /sys/class/block 2>/dev/null | grep '^mmcblk')" ] && [ $i -lt 10 ]; do
+	while [ -z "$(ls /sys/class/block 2>/dev/null | grep '^mmcblk')" ] && [ $i -lt 30 ]; do
 		sleep 1; i=$((i+1))
 	done
-	for dev in $(ls /sys/class/block 2>/dev/null | grep '^mmcblk[0-9]*p1$'; \
+	say "microSD: blok=[$(ls /sys/class/block 2>/dev/null | grep '^mmcblk' | tr '\n' ' ')] setelah ${i}s"
+	dmesg | grep -iE 'mmc[0-9]|sdhci|8804000' | tail -n 6 | while read -r l; do say "  sd: $l"; done
+	for dev in $(ls /sys/class/block 2>/dev/null | grep '^mmcblk[0-9]*p[0-9]*$'; \
 		     ls /sys/class/block 2>/dev/null | grep '^mmcblk[0-9]*$'); do
 		mkdir -p /mnt/sd
 		for fs in vfat exfat; do
-			if mount -t $fs -o rw,sync,noatime /dev/$dev /mnt/sd 2>/dev/null; then
+			if mount -t $fs -o rw,sync,noatime /dev/$dev /mnt/sd 2>/tmp/mnt.err; then
 				mkdir -p /mnt/sd/vayu-log
 				n=1
 				while [ -e /mnt/sd/vayu-log/log-$n.txt ]; do n=$((n+1)); done
@@ -117,7 +119,7 @@ simpan_ke_sd() {
 			fi
 		done
 	done
-	say "microSD tidak ditemukan / bukan FAT32/exFAT; log hanya di ramoops"
+	say "microSD tidak ditemukan / bukan FAT32/exFAT; log hanya di ramoops ($(cat /tmp/mnt.err 2>/dev/null | head -c 120))"
 	return 1
 }
 simpan_ke_sd "setelah init siap"
