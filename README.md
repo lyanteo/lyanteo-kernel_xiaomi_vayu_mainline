@@ -4,6 +4,10 @@ Kernel Linux **6.13** (sm8150-mainline) + patch khusus vayu, bukan kernel vendor
 
 > ⚠️ Status: **semua pemeriksaan tanpa HP lolos, tapi belum pernah dijalankan di HP sungguhan.**
 > Image di sini untuk **uji sekali jalan**, bukan untuk dipakai harian.
+>
+> ⚠️ Setiap kali memasang ROM/kernel lain (mis. zip KernelSU), partisi `dtbo` bisa ikut berganti.
+> Kirim `dtbo` terbaru (`dd if=/dev/block/by-name/dtbo of=/sdcard/Download/dtbo.img`) untuk diuji dulu,
+> kalau tidak bootloader bisa langsung kembali ke fastboot.
 
 ## Hasil build
 
@@ -95,6 +99,7 @@ fastboot boot boot-6.13-vayu.img
 | `0006` | `qcom,msm-id` + `qcom,board-id` dari kernel vendor |
 | `0007` | Node stub untuk label yang dirujuk overlay `dtbo` Infinity-X dan crDroid |
 | `0008` | Ramoops disamakan dengan kernel crDroid (1 MB, satu record dmesg, dump saat restart) |
+| `0009` | Stub `tdm_sen_rx/tx` untuk `dtbo` dari zip kernel KernelSU |
 
 | File | Isi |
 |---|---|
@@ -102,7 +107,7 @@ fastboot boot boot-6.13-vayu.img
 | `initramfs/init` | Init debug (busybox), ringkasan ke ramoops, restart otomatis ke recovery |
 | `initramfs/reboot-recovery.c` | Program kecil (tanpa libc) untuk `reboot(RESTART2, "recovery")` |
 | `tools/alihkan_symbols.py` | Arahkan 8 label yang juga ada di mainline (`soc`, `tlmm`, `mdss_*`, `pcie0`, `sdhc_2`, `spmi_bus`) ke stub, agar overlay vendor tidak menyentuh node asli |
-| `tools/dtbo/crdroid-vayu-dtbo.img` | `dtbo` crDroid (tanpa footer AVB) sebagai bahan uji |
+| `tools/dtbo/*.img` | `dtbo` yang pernah terpasang di HP (crDroid, kernel KSU), tanpa footer AVB; semuanya diuji tiap build |
 | `tools/cek_dtbo.py` | Simulasi bootloader: tempel overlay `dtbo.img` ke DTB, laporkan label hilang dan perubahan di luar stub |
 | `.github/workflows/build.yml` | Build + semua pemeriksaan di atas |
 | `.github/workflows/cek-dtbo.yml` | Simulasi overlay saja (cepat) |

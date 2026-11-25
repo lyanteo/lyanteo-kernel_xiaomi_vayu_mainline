@@ -90,16 +90,19 @@ jobs:
           # __symbols__ wajib ada agar bootloader bisa menempelkan overlay dtbo
           out/scripts/dtc/dtc -I dtb -O dts out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb 2>/dev/null | grep -q "__symbols__"
 
-      - name: Simulasi bootloader - overlay dtbo crDroid (wajib lolos)
+      - name: Simulasi bootloader - semua dtbo di tools/dtbo (wajib lolos)
         run: |
           set -o pipefail
           python3 tools/alihkan_symbols.py linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb \
             linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu-tianma.dtb
           # Infinity-X dilewati (perlu unduh ROM 2 GB); uji manual lewat workflow cek-dtbo.
-          for v in vayu vayu-tianma; do
-            echo "======== crDroid  /  $v"
-            python3 tools/cek_dtbo.py tools/dtbo/crdroid-vayu-dtbo.img \
-              linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-$v.dtb "cek-crdroid-$v" --ketat | grep -v "label yang ADA"
+          # Semua dtbo yang pernah terpasang di HP pengguna (crDroid, kernel KSU, ...)
+          for img in tools/dtbo/*.img; do
+            for v in vayu vayu-tianma; do
+              echo "======== $(basename $img)  /  $v"
+              python3 tools/cek_dtbo.py "$img" linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-$v.dtb \
+                "cek-$(basename $img .img)-$v" --ketat | grep -v "label yang ADA"
+            done
           done
 
       - name: Initramfs + boot image
