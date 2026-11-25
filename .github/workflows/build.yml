@@ -18,6 +18,14 @@ env:
   LLVM: "1"
   KERNEL_REPO: https://gitlab.com/sm8150-mainline/linux.git
   KERNEL_TAG: v6.13.0-sm8150
+  CCACHE_DIR: /home/runner/.ccache
+  CCACHE_MAXSIZE: 3G
+  CCACHE_COMPILERCHECK: content
+  CCACHE_SLOPPINESS: include_file_mtime,include_file_ctime,time_macros
+  # Stempel waktu & pembuat tetap, agar hasil build bisa dipakai ulang oleh ccache
+  KBUILD_BUILD_TIMESTAMP: "2026-01-01"
+  KBUILD_BUILD_USER: ci
+  KBUILD_BUILD_HOST: vayu
 
 jobs:
   build:
@@ -29,7 +37,7 @@ jobs:
       - name: Alat
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang lld llvm flex bison bc libssl-dev libelf-dev cpio python3 file qemu-system-arm device-tree-compiler unzip dosfstools mtools
+          sudo apt-get install -y -qq clang lld llvm flex bison bc libssl-dev libelf-dev cpio python3 file qemu-system-arm device-tree-compiler unzip dosfstools mtools ccache
           git clone -q --depth 1 https://android.googlesource.com/platform/system/tools/mkbootimg /opt/mkbootimg
           DEB=$(curl -fsSL http://ports.ubuntu.com/pool/universe/b/busybox/ | grep -o 'busybox-static_[^"]*_arm64\.deb' | sort -uV | tail -n1)
           echo "busybox: $DEB"
@@ -42,6 +50,14 @@ jobs:
           file "$BB" | grep -q "ARM aarch64"
           file "$BB" | grep -q "statically linked"
 
+      - name: Cache ccache (hasil kompilasi build sebelumnya)
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.ccache
+          key: ccache-${{ env.KERNEL_TAG }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ env.KERNEL_TAG }}-
+
       - name: Source kernel + patch vayu
         run: |
           git clone -q --depth 1 --branch "$KERNEL_TAG" "$KERNEL_REPO" linux
@@ -53,7 +69,7 @@ jobs:
       - name: Config
         run: |
           cd linux
-          make -s O=out defconfig sm8150.config vayu.config
+          make -s O=out CC="ccache clang" defconfig sm8150.config vayu.config
           for o in DRM_PANEL_NOVATEK_NT36672C_J20S TOUCHSCREEN_NT36xxx_HOSTDL_SPI PSTORE_RAM PSTORE_CONSOLE \
                    DRM_MSM BACKLIGHT_QCOM_WLED FB_SIMPLE FRAMEBUFFER_CONSOLE USB_DWC3_QCOM USB_CONFIGFS_ACM \
                    USB_CONFIGFS_NCM BLK_DEV_INITRD RD_GZIP DEVTMPFS MMC_SDHCI_MSM MMC_BLOCK VFAT_FS EXFAT_FS; do
@@ -64,7 +80,9 @@ jobs:
       - name: Build
         run: |
           cd linux
-          make O=out -j"$(nproc)" DTC_FLAGS=-@ Image qcom/sm8150-xiaomi-vayu.dtb qcom/sm8150-xiaomi-vayu-tianma.dtb 2>&1 | tee ../build.log | grep -E "error|warning: .*(nt36672c|xiaomi|j20s)" || true
+          ccache -z
+          make O=out -j"$(nproc)" CC="ccache clang" DTC_FLAGS=-@ Image qcom/sm8150-xiaomi-vayu.dtb qcom/sm8150-xiaomi-vayu-tianma.dtb 2>&1 | tee ../build.log | grep -E "error|warning: .*(nt36672c|xiaomi|j20s)" || true
+          ccache -s
           test -f out/arch/arm64/boot/Image
           ls -l out/arch/arm64/boot/Image
           out/scripts/dtc/dtc -I dtb -O dts out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-vayu.dtb 2>/dev/null | grep -A2 "ramoops@a1600000"
