@@ -122,7 +122,7 @@ jobs:
               --os_version 16.0.0 --os_patch_level 2026-09 \
               --kernel linux/out/arch/arm64/boot/Image --ramdisk initramfs.cpio.gz \
               --dtb linux/out/arch/arm64/boot/dts/qcom/sm8150-xiaomi-$v.dtb \
-              --cmdline "console=tty0 loglevel=7 ignore_loglevel panic=10 clk_ignore_unused pd_ignore_unused" \
+              --cmdline "console=tty0 loglevel=7 ignore_loglevel panic=10 reboot=warm clk_ignore_unused pd_ignore_unused" \
               -o dist/boot-6.13-$v.img
             python3 /opt/mkbootimg/unpack_bootimg.py --boot_img dist/boot-6.13-$v.img --out /tmp/chk-$v --format=info | head -20
           done

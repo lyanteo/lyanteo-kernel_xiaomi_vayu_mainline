@@ -86,6 +86,8 @@ say "input: $(grep -h '^N:' /proc/bus/input/devices 2>/dev/null | tr '\n' ' ')"
 say "baterai: $(cat /sys/class/power_supply/*/capacity 2>/dev/null | tr '\n' ' ')"
 say "thermal0: $(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)"
 say "remoteproc: $(cat /sys/class/remoteproc/*/state 2>/dev/null | tr '\n' ' ')"
+say "pstore: [$(ls /sys/fs/pstore 2>/dev/null | tr '\n' ' ')] ramoops: $(dmesg | grep -i ramoops | tail -n 2 | tr '\n' ' ')"
+say "reboot: $(grep -o 'reboot=[a-z]*' /proc/cmdline) psci: $(dmesg | grep -i 'psci' | grep -iE 'v[0-9]|reset2|SYSTEM_RESET' | head -n 2 | tr '\n' ' ')"
 say "probe gagal: $(dmesg | grep -ciE 'probe.*failed|failed to probe|error -')"
 dmesg | grep -iE 'probe.*failed|failed to probe' | head -n 15 | while read -r l; do say "  $l"; done
 
