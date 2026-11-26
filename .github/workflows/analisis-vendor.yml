@@ -101,6 +101,20 @@ jobs:
             echo; cat laporan-vendor.md
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Batas dukungan vendor lama di sistem A15 dan A17
+        if: always()
+        run: |
+          for d in s v; do
+            n=$([ $d = s ] && echo "sistem LOS22.2 (Android 15)" || echo "sistem LOS24 (Android 17)")
+            echo "=== $n"
+            echo "level VINTF didukung: $(ls $d/system/etc/vintf | grep -oE 'compatibility_matrix\.[0-9]+\.xml' | grep -oE '[0-9]+' | sort -n | tr '\n' ' ')"
+            echo "mapping SELinux vendor: $(ls $d/system/etc/selinux/mapping | grep -vE 'compat|ignore' | sed 's/\.cil//' | sort -V | tr '\n' ' ')"
+            for lv in 5 6 7; do
+              f=$d/system/etc/vintf/compatibility_matrix.$lv.xml
+              [ -f $f ] && echo "  matriks $lv: kernel $(grep -oE '<kernel version="[^"]+"' $f | grep -oE '[0-9.]+' | sort -uV | tr '\n' ' ')"
+            done
+          done
+
       - name: Uji kompilasi SELinux seperti init (vendor 202604 diturunkan ke mapping 202404)
         if: always()
         run: |
